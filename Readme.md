@@ -1,35 +1,53 @@
-# SnapStamp 📸📮 —— 把生活印成数字邮票
+# SnapStamp (拍邮)
 
-**SnapStamp** 是一款极具创意的趣味相机与相册应用。它不仅能帮你记录生活的闪光瞬间，还能将每一张照片自动塑造成一张精致的“数字邮票”。只需按下快门，属于你此刻的时光碎片就会被珍藏进你的专属“集邮册”中。
+![Logo](logo.jpg)
 
-### ✨ 核心功能亮点
+**[English](#english) | [中文](#中文)**
 
-* **复古邮票取景器**
-    打开相机，屏幕上会浮现半透明的邮票取景遮罩。按下快门后，应用会自动为你裁剪并生成带有复古锯齿边缘的邮票照片。
-* **翻转邮票，查看时光背书**
-    在“集邮册”中轻轻**点击**任意一张邮票，即可触发精美的 3D 翻转动画。邮票背面不仅印有专属印记，还会像真实的明信片一样，自动记录下这张照片的**拍摄日期**、**使用的设备**以及当时的**地理坐标**。
-* **无缝同步系统相册**
-    你拍摄的精美邮票不仅会保存在 App 内部，还会自动生成高清原图保存到手机系统相册中（`图库 - Pictures/SnapStamp` 文件夹下），方便你随时分享到朋友圈或其他社交平台。
-* **极简操作与管理**
-    界面设计纯粹无广告。如果你对某张照片不满意，在集邮册中**长按邮票**即可瞬间删除，干净利落。
+---
 
-### 📱 运行要求
+<a name="中文"></a>
 
-* **系统要求**：为了提供最流畅的体验与符合现代手机的安全标准，本应用专为新版系统设计，**仅支持 Android 13 及以上系统版本**的手机安装运行。
+## 🇨🇳 中文说明
 
-### 🔒 隐私与权限说明
+**SnapStamp** 是一款基于 Android 平台，结合现代 Jetpack Compose 技术构建的趣味摄影应用。它能将你拍摄的照片自动处理为带有“邮票齿孔”边框的艺术作品，并支持添加地理位置及个性化备注。
 
-为了让应用正常运作并为您生成完美的邮票信息，首次打开应用时需要您授予以下两项基础权限：
+### 核心功能
 
-1. **相机权限**：用于在应用内打开取景器并拍摄照片。
-2. **位置权限 (精确/大致定位)**：仅在您按下快门的那一刻获取位置，用于在邮票背面刻印真实的“地理坐标邮戳”，我们绝对不会在后台持续追踪您的位置。
+* **拍邮体验**：使用相机捕获照片，自动裁切并生成经典的邮票边框样式。
+* **地理坐标**：自动获取拍摄时的经纬度，并将位置信息嵌入照片的 Exif 数据中。
+* **集邮册**：在库中浏览、长按删除或者分享你的作品；点击邮票即可翻转查看背后的拍摄信息及备注。
+* **灵活保存**：支持保存带边框的完整艺术照，或纯净的无边框原图。
+* **现代 UI**：基于 Jetpack Compose 构建，拥有流畅的动画效果和美观的交互界面。
 
-*(由于采用了 Android 13 最新的系统特性，应用保存照片到相册不再需要索取读取/写入手机所有文件的权限，全方位保护您的隐私安全。)*
+### 技术栈
 
-### 💡 快速上手指南
+* **Kotlin & Jetpack Compose**：声明式 UI 构建。
+* **CameraX**：提供高性能、易用的相机操作 API。
+* **Coil**：高效的图片加载与处理库。
+* **ExifInterface**：用于读取与写入照片的元数据（地理位置、备注等）。
+* **FusedLocationProvider**：Google Location API 获取精准拍摄地点。
 
-1. 下载并安装 SnapStamp 的 `.apk` 文件。
-2. 打开应用，允许相机和定位权限。
-3. 在“生成”页面，把喜欢的风景对准中央的邮票方框，点击底部白色快门键。
-4. 看到“集邮成功”提示后，点击底部导航栏切换到“库”。
-5. 点击刚拍好的邮票查看背面的坐标与时间，或**长按**将其删除。快去收集属于你的风景邮票吧！
+---
+
+<a name="english"></a>
+
+## 🇺🇸 English Description
+
+**SnapStamp** is a creative photography application for Android, built with modern Jetpack Compose. It automatically transforms your photos into stamp-like art pieces with perforated borders and allows you to add geographical locations and personalized notes.
+
+### Key Features
+
+* **Stamp Generation**: Capture photos with the camera, automatically crop them, and generate classic stamp-style frames.
+* **Geotagging**: Automatically retrieves GPS coordinates at the time of shooting and embeds the location info into the photo's Exif data.
+* **Stamp Album**: Browse, delete, and share your collection. Flip the stamp to view the detailed capture info and your personal notes.
+* **Flexible Export**: Choose to save the stylized stamp with its perforated border or the clean, original photo.
+* **Modern UI**: Built with Jetpack Compose, offering smooth animations and an intuitive, elegant user experience.
+
+### Tech Stack
+
+* **Kotlin & Jetpack Compose**：Declarative UI development.
+* **CameraX**：High-performance, easy-to-use camera APIs.
+* **Coil**：Efficient image loading and processing.
+* **ExifInterface**：Handling image metadata (GPS, user comments, etc.).
+* **FusedLocationProvider**：Accurate location tracking for your snapshots.
