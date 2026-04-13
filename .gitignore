@@ -1,15 +1,47 @@
+# Gradle 缓存与构建产物
+.gradle/
+build/
+**/build/
+
+# IDE 配置 (Android Studio / IntelliJ)
+.idea/
+.shelf/
+.workspace.xml
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/contentModel.xml
+
+# 其他 IDE 文件
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+*.iws
+*.ipr
+*.idea/
+.navigation/
+
+# 系统生成的临时文件
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+Thumbs.db
+Desktop.ini
+
+# 本地属性文件 (包含签名配置、路径等私密信息)
 local.properties
+
+# Android 编译生成的缓存
+.cxx/
+.externalNativeBuild/
+.externalNativeBuild/
+.cxx/
+
+# Gradle 包装器 (可选：如果你不想提交 gradle wrapper，可以加上下面这行，但通常建议提交)
+# .gradle/wrapper/
+
+# 日志文件
+*.log
+
+# 捕获错误报告 (Android Studio 生成的)
+crashlytics-build.properties
+crashlytics.properties
+fabric.properties
