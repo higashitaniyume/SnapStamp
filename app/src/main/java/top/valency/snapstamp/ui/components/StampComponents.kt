@@ -2,15 +2,26 @@ package top.valency.snapstamp.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -30,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import top.valency.snapstamp.model.StampModel
+import java.io.File
 
 class StampShape(private val holeRadius: Float = 15f, private val spacing: Float = 45f) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
@@ -70,14 +82,18 @@ fun StampItem(stamp: StampModel, onClick: () -> Unit, onLongClick: () -> Unit) {
 }
 
 @Composable
-fun FlipStampCard(stamp: StampModel) {
+fun FlipStampCard(stamp: StampModel, displayFile: File? = null) {
     var flipped by remember { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (flipped) 180f else 0f, tween(600), label = "")
+
+    // 如果外部没传 displayFile，默认用 stamp.file
+    val fileToShow = displayFile ?: stamp.file
 
     Surface(
         modifier = Modifier.size(320.dp).graphicsLayer {
             rotationY = rotation
             cameraDistance = 15 * density
+            // 注意：StampShape 是你自定义的绘制形状，确保它在这里正确引用
             shape = StampShape(15f, 45f)
             clip = true
         }.clickable { flipped = !flipped },
@@ -85,9 +101,16 @@ fun FlipStampCard(stamp: StampModel) {
     ) {
         if (rotation <= 90f) {
             Box(Modifier.fillMaxSize().padding(20.dp)) {
-                AsyncImage(model = stamp.file, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                // 使用 AsyncImage 加载当前指定的文件
+                AsyncImage(
+                    model = fileToShow,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
         } else {
+            // 背面保持不变
             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.padding(24.dp), Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("SNAP STAMP", fontWeight = FontWeight.Bold, color = Color.Gray)
@@ -102,7 +125,9 @@ fun FlipStampCard(stamp: StampModel) {
                     }
 
                     Spacer(Modifier.weight(1f))
-                    ComposeCanvas(Modifier.size(60.dp)) { drawCircle(Color.LightGray, style = androidx.compose.ui.graphics.drawscope.Stroke(2f)) }
+                    androidx.compose.foundation.Canvas(Modifier.size(60.dp)) {
+                        drawCircle(Color.LightGray, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                    }
                     Text("*已支付邮资*", fontSize = 10.sp, color = Color.LightGray)
                 }
             }

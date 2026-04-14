@@ -19,6 +19,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.graphics.createBitmap
 
 // 拍照权限处理保持不变
 fun takePhotoWithPermission(context: Context, client: FusedLocationProviderClient, onResult: (android.location.Location?) -> Unit) {
@@ -26,7 +27,7 @@ fun takePhotoWithPermission(context: Context, client: FusedLocationProviderClien
     val coarseLoc = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
     if (fineLoc == android.content.pm.PackageManager.PERMISSION_GRANTED || coarseLoc == android.content.pm.PackageManager.PERMISSION_GRANTED) {
         try { client.lastLocation.addOnCompleteListener { task -> onResult(if (task.isSuccessful) task.result else null) } }
-        catch (e: SecurityException) { onResult(null) }
+        catch (_: SecurityException) { onResult(null) }
     } else { onResult(null) }
 }
 
@@ -44,7 +45,7 @@ suspend fun processAndSaveStamp(
     viewW: Int,
     viewH: Int,
     loc: android.location.Location?
-): Bitmap? = withContext(Dispatchers.Default) {
+): Bitmap? = withContext(Dispatchers.IO) {
 
     // --- 第一部分：图像裁剪与旋转 (超清重写版) ---
     // 1. 获取旋转后理应得到的宽高（但不实际创建巨大的旋转图片）
@@ -71,7 +72,7 @@ suspend fun processAndSaveStamp(
 
     // 4. 一次性无损裁剪：直接在目标尺寸的画布上进行矩阵变换和绘制
     // 这样做避免了全图旋转造成的极高内存开销和像素插值损失
-    val cropped = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
+    val cropped = createBitmap(cropSize, cropSize)
     val canvas = Canvas(cropped)
 
     val matrix = Matrix()
@@ -115,10 +116,8 @@ suspend fun processAndSaveStamp(
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "$baseFileName.png")
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
         }
 
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -129,11 +128,9 @@ suspend fun processAndSaveStamp(
                 stampBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.clear()
-                values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                context.contentResolver.update(targetUri, values, null, null)
-            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(targetUri, values, null, null)
         }
 
         return@withContext stampBitmap
@@ -142,4 +139,73 @@ suspend fun processAndSaveStamp(
         Log.e("processAndSaveStamp", "保存失败", e)
         return@withContext null
     }
+}
+
+
+/**
+ * 应用“油画风格”滤镜 (相邻像素灰度分组算法)
+ * @param src 原始 Bitmap
+ * @param radius 采样半径 (值越大，笔触色块越大)
+ * @param levels 色彩/灰度层级 (值越小，色彩越扁平化，油画感越强)
+ */
+suspend fun applyOilPaintingFilter(src: Bitmap, radius: Int = 4, levels: Int = 20): Bitmap = withContext(Dispatchers.Default) {
+    val width = src.width
+    val height = src.height
+    // 创建与原图等大的画布
+    val dest = createBitmap(width, height)
+
+    // 使用 IntArray 批量处理像素，极大地提升遍历性能，避免 getPixel/setPixel 的开销
+    val srcPixels = IntArray(width * height)
+    val destPixels = IntArray(width * height)
+    src.getPixels(srcPixels, 0, width, 0, 0, width, height)
+
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val intensityCount = IntArray(levels)
+            val intensityR = IntArray(levels)
+            val intensityG = IntArray(levels)
+            val intensityB = IntArray(levels)
+
+            var maxCount = 0
+            var maxIndex = 0
+
+            // 遍历相邻像素半径区域
+            for (dy in -radius..radius) {
+                for (dx in -radius..radius) {
+                    val nx = (x + dx).coerceIn(0, width - 1)
+                    val ny = (y + dy).coerceIn(0, height - 1)
+                    val color = srcPixels[ny * width + nx]
+
+                    val r = (color shr 16) and 0xFF
+                    val g = (color shr 8) and 0xFF
+                    val b = color and 0xFF
+
+                    // 计算该像素的灰度等级分组
+                    val intensity = (((r + g + b) / 3.0) * levels / 256.0).toInt().coerceIn(0, levels - 1)
+
+                    intensityCount[intensity]++
+                    intensityR[intensity] += r
+                    intensityG[intensity] += g
+                    intensityB[intensity] += b
+
+                    // 找出出现次数最多的灰度分组
+                    if (intensityCount[intensity] > maxCount) {
+                        maxCount = intensityCount[intensity]
+                        maxIndex = intensity
+                    }
+                }
+            }
+
+            // 计算该高频分组的平均 RGB 颜色
+            val outR = intensityR[maxIndex] / maxCount
+            val outG = intensityG[maxIndex] / maxCount
+            val outB = intensityB[maxIndex] / maxCount
+
+            // 组合并设置目标像素
+            destPixels[y * width + x] = (-0x1000000) or (outR shl 16) or (outG shl 8) or outB
+        }
+    }
+
+    dest.setPixels(destPixels, 0, width, 0, 0, width, height)
+    return@withContext dest
 }
