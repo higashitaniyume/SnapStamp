@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- context.filesDir 对应的路径 -->
+    <files-path name="images" path="." />
+    <!-- context.cacheDir 对应的路径 -->
+    <cache-path name="cache" path="." />
+</paths>

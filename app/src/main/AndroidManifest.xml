@@ -14,7 +14,9 @@
     <!-- 存储权限：对于 Android 13 (API 33)+
          如果你只需要把照片存入媒体库，其实不需要额外申请 WRITE 权限，
          但如果你以后想在 App 里读取手机里的其他照片，需要声明这个： -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+<!--    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />-->
+
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -24,10 +26,18 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SnapStamp">
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.SnapStamp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
