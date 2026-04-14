@@ -118,7 +118,7 @@ fun LibraryScreen() {
 
     // --- 加载数据 ---
     fun load() {
-        isOperating = true // 修改点1：一开始就展示 Loading 遮罩层，避免点进来出现视觉"死机"感
+        isOperating = true
         scope.launch(Dispatchers.IO) {
             val files = context.filesDir.listFiles { f ->
                 f.name.startsWith("STAMP_") && f.name.endsWith(".jpg") && !f.name.contains("_OIL")
@@ -126,7 +126,7 @@ fun LibraryScreen() {
 
             val mapped = mutableListOf<StampModel>()
             for (f in files.sortedByDescending { it.lastModified() }) {
-                kotlinx.coroutines.yield() // 修改点2：密集读取 EXIF 时挂起让出线程，防止吃满线程池卡死主线程
+                kotlinx.coroutines.yield()
                 val exif = ExifInterface(f.absolutePath)
                 mapped.add(
                     StampModel(
@@ -145,7 +145,7 @@ fun LibraryScreen() {
 
     // --- 核心操作逻辑 ---
 
-    // 滤镜生成逻辑：持久化保存
+    // 滤镜生成逻辑
     fun toggleOilFilter(stamp: StampModel, enable: Boolean) {
         val oilFile = File(stamp.file.absolutePath.replace(".jpg", "_OIL.jpg"))
         if (enable) {
@@ -155,8 +155,6 @@ fun LibraryScreen() {
                 isOperating = true
                 scope.launch(Dispatchers.IO) {
                     val original = BitmapFactory.decodeFile(stamp.file.absolutePath) ?: return@launch
-
-                    // 修改点3：对将要处理的原图进行降采样压缩。限制最长边为800，避免处理数千万像素导致的极长耗时。
                     val maxDim = 800f
                     val scale = minOf(1f, maxDim / maxOf(original.width, original.height))
                     val processBitmap = if (scale < 1f) {
@@ -164,12 +162,11 @@ fun LibraryScreen() {
                             (original.width * scale).toInt(),
                             (original.height * scale).toInt()
                         )
-                        original.recycle() // 及时回收无用大图
+                        original.recycle()
                         scaled
                     } else {
                         original
                     }
-
                     val filtered = applyOilPaintingFilter(processBitmap, radius = 7, levels = 20)
                     FileOutputStream(oilFile).use { out -> filtered.compress(Bitmap.CompressFormat.JPEG, 100, out) }
                     processBitmap.recycle()
@@ -182,25 +179,21 @@ fun LibraryScreen() {
         }
     }
 
-    // 保存到相册 (基于当前显示的文件)
+    // 保存到相册
     fun performSave(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
             stamps.forEach { stamp ->
                 try {
-                    // 如果是预览单张，使用预览选中的文件；如果是多选，默认用原图（此处逻辑可根据需要调整）
                     val fileToProcess = if (stamps.size == 1 && selectedStampForPreview == stamp) currentDisplayFile ?: stamp.file else stamp.file
                     val isOil = fileToProcess.name.contains("_OIL")
-
                     val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault()).format(Date())
                     val displayName = if (withBorder) "STAMP_${if(isOil)"OIL_" else ""}$timeStr.png" else "PHOTO_${if(isOil)"OIL_" else ""}$timeStr.jpg"
-
                     val values = ContentValues().apply {
                         put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
                         put(MediaStore.Images.Media.MIME_TYPE, if (withBorder) "image/png" else "image/jpeg")
                         put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
                     }
-
                     context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)?.let { uri ->
                         context.contentResolver.openOutputStream(uri)?.use { out ->
                             if (withBorder) {
@@ -221,7 +214,7 @@ fun LibraryScreen() {
         }
     }
 
-    // 分享 (基于当前显示的文件)
+    // 分享
     fun performShare(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -229,7 +222,6 @@ fun LibraryScreen() {
                 val uris = ArrayList<Uri>()
                 stamps.forEach { stamp ->
                     val fileToProcess = if (stamps.size == 1 && selectedStampForPreview == stamp) currentDisplayFile ?: stamp.file else stamp.file
-
                     val fileToShare = if (withBorder) {
                         val bitmap = BitmapFactory.decodeFile(fileToProcess.absolutePath)
                         val stamped = createStampBitmap(bitmap)
@@ -237,7 +229,6 @@ fun LibraryScreen() {
                         FileOutputStream(temp).use { stamped.compress(Bitmap.CompressFormat.PNG, 100, it) }
                         temp
                     } else fileToProcess
-
                     uris.add(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", fileToShare))
                 }
                 val intent = Intent(if (uris.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND).apply {
@@ -247,12 +238,12 @@ fun LibraryScreen() {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(intent, "分享图片"))
-            } catch (_: Exception) { /* Log error */ }
+            } catch (_: Exception) { }
             withContext(Dispatchers.Main) { isOperating = false }
         }
     }
 
-    // 删除 (连带删除油画副本)
+    // 删除
     fun performDelete(stamps: List<StampModel>) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -307,8 +298,21 @@ fun LibraryScreen() {
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            // 修改点4：用 remember 缓存分组结果，避免页面产生其他状态交互时主线程反复进行分组运算
-            val groupedStamps = remember(stampList) { stampList.groupBy { it.date.take(10) } }
+            // --- 修复点：在这里对日期进行格式化处理 ---
+            val groupedStamps = remember(stampList) {
+                stampList.groupBy { stamp ->
+                    val rawDate = stamp.date.take(10) // 原始格式 "2026:01:01"
+                    try {
+                        val inputFormat = SimpleDateFormat("yyyy:MM:dd", Locale.getDefault())
+                        val outputFormat = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
+                        val dateObj = inputFormat.parse(rawDate)
+                        if (dateObj != null) outputFormat.format(dateObj) else rawDate
+                    } catch (e: Exception) {
+                        rawDate
+                    }
+                }
+            }
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(16.dp),
@@ -326,7 +330,7 @@ fun LibraryScreen() {
                                     if (isSelectionMode) { if (isSelected) selectedItems.remove(stamp) else selectedItems.add(stamp) }
                                     else {
                                         selectedStampForPreview = stamp
-                                        currentDisplayFile = stamp.file // 进入预览时默认为原图
+                                        currentDisplayFile = stamp.file
                                     }
                                 },
                                 onLongClick = { if(!isSelectionMode) { isSelectionMode = true; selectedItems.add(stamp) } }
@@ -346,22 +350,14 @@ fun LibraryScreen() {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f)).clickable { selectedStampForPreview = null }, Alignment.Center) {
                     selectedStampForPreview?.let { stamp ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(enabled = false) {}) {
-
-                            // 翻转卡片 (核心修改：传入当前预览的文件)
                             FlipStampCard(stamp = stamp, displayFile = currentDisplayFile)
-
                             Spacer(Modifier.height(24.dp))
-
-                            // 滤镜切换器
                             Row(Modifier.background(Color.White.copy(alpha = 0.1f), CircleShape).padding(4.dp)) {
                                 val isOil = currentDisplayFile?.name?.contains("_OIL") == true
                                 FilterTab("原图", !isOil) { toggleOilFilter(stamp, false) }
                                 FilterTab("油画", isOil) { toggleOilFilter(stamp, true) }
                             }
-
                             Spacer(Modifier.height(24.dp))
-
-                            // 操作按钮
                             Surface(color = Color.White.copy(alpha = 0.1f), shape = RoundedCornerShape(32.dp)) {
                                 Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     PreviewActionBtn(Icons.Default.Edit, "备注") { remarkText = stamp.remark; showRemarkDialog = stamp }
@@ -383,7 +379,6 @@ fun LibraryScreen() {
         }
     }
 
-    // 删除和备注对话框代码... (逻辑保持不变)
     if (showDeleteConfirm != null) {
         AlertDialog(
             onDismissRequest = { },
@@ -392,7 +387,7 @@ fun LibraryScreen() {
             confirmButton = {
                 Button(onClick = { performDelete(showDeleteConfirm!!); showDeleteConfirm = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("确认移除") }
             },
-            dismissButton = { TextButton(onClick = { }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("取消") } }
         )
     }
 
