@@ -1,7 +1,5 @@
 # SnapStamp
 
-## 🇺🇸 English Description
-
 **SnapStamp** is a creative photography application for Android, built with modern Jetpack Compose. It automatically transforms your photos into stamp-like art pieces with perforated borders and allows you to add geographical locations and personalized notes.
 
 ### Key Features
