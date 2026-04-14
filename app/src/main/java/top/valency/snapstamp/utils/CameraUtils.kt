@@ -3,7 +3,9 @@ package top.valency.snapstamp.utils
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Build
 import android.provider.MediaStore
@@ -44,35 +46,62 @@ suspend fun processAndSaveStamp(
     loc: android.location.Location?
 ): Bitmap? = withContext(Dispatchers.Default) {
 
-    // --- 第一部分：图像裁剪与旋转 ---
-    val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
-    val rotated = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+    // --- 第一部分：图像裁剪与旋转 (超清重写版) ---
+    // 1. 获取旋转后理应得到的宽高（但不实际创建巨大的旋转图片）
+    val isTransposed = rotation == 90 || rotation == 270
+    val rotatedW = if (isTransposed) original.height else original.width
+    val rotatedH = if (isTransposed) original.width else original.height
 
-    val scale = maxOf(viewW.toFloat() / rotated.width, viewH.toFloat() / rotated.height)
-    val dx = (viewW - rotated.width * scale) / 2f
-    val dy = (viewH - rotated.height * scale) / 2f
+    // 2. 根据取景框的缩放规则（CenterCrop）推算缩放比例和偏移量
+    val scale = maxOf(viewW.toFloat() / rotatedW, viewH.toFloat() / rotatedH)
+    val dx = (viewW - rotatedW * scale) / 2f
+    val dy = (viewH - rotatedH * scale) / 2f
 
+    // 3. 将屏幕上的裁剪框精准映射回高分辨率原图上的坐标
     val cropLeft = ((screenRect.left - dx) / scale).toInt().coerceAtLeast(0)
     val cropTop = ((screenRect.top - dy) / scale).toInt().coerceAtLeast(0)
     val cropSize = (screenRect.width() / scale).toInt()
-        .coerceAtMost(rotated.width - cropLeft)
-        .coerceAtMost(rotated.height - cropTop)
+        .coerceAtMost(rotatedW - cropLeft)
+        .coerceAtMost(rotatedH - cropTop)
 
-    // 最终得到的正方形裁剪图 (无边框原图)
-    val cropped = Bitmap.createBitmap(rotated, cropLeft, cropTop, cropSize, cropSize)
+    if (cropSize <= 0) {
+        Log.e("processAndSaveStamp", "裁剪尺寸无效: $cropSize")
+        return@withContext null
+    }
+
+    // 4. 一次性无损裁剪：直接在目标尺寸的画布上进行矩阵变换和绘制
+    // 这样做避免了全图旋转造成的极高内存开销和像素插值损失
+    val cropped = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(cropped)
+
+    val matrix = Matrix()
+    matrix.postTranslate(-original.width / 2f, -original.height / 2f) // 移至原点准备旋转
+    matrix.postRotate(rotation.toFloat()) // 旋转
+    matrix.postTranslate(rotatedW / 2f, rotatedH / 2f) // 移回正象限
+    matrix.postTranslate(-cropLeft.toFloat(), -cropTop.toFloat()) // 移动到裁剪区域
+
+    val paint = Paint().apply {
+        isAntiAlias = true
+        isFilterBitmap = true // 开启双线性过滤保证平滑
+        isDither = true
+    }
+    canvas.drawBitmap(original, matrix, paint)
+
+    // 可以释放原图内存了（防 OOM）
+    original.recycle()
 
     val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val baseFileName = "STAMP_$timeStr"
 
     try {
         // --- 第二部分：保存到 App 私有目录 (.jpg) ---
-        // 这是 App 内部集邮册的数据源
         val internalFile = File(context.filesDir, "$baseFileName.jpg")
         FileOutputStream(internalFile).use { out ->
-            cropped.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            // 修改为 100 质量以保证极致清晰
+            cropped.compress(Bitmap.CompressFormat.JPEG, 100, out)
         }
 
-        // 写入 EXIF 信息到私有文件
+        // 写入 EXIF 信息
         val exif = ExifInterface(internalFile.absolutePath)
         loc?.let { exif.setGpsInfo(it) }
         exif.setAttribute(ExifInterface.TAG_MODEL, Build.MODEL)
@@ -82,11 +111,10 @@ suspend fun processAndSaveStamp(
         // --- 第三部分：合成带边框邮票并保存到相册 (.png) ---
         val stampBitmap = createStampBitmap(cropped)
 
-        // 插入到系统相册 (MediaStore)
+        // 插入到系统相册
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "$baseFileName.png")
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            // Android 10+ 放置在特定文件夹下，无需存储权限
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
@@ -106,13 +134,8 @@ suspend fun processAndSaveStamp(
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
                 context.contentResolver.update(targetUri, values, null, null)
             }
-
-            // 尝试将私有文件的 EXIF 拷贝到相册文件 (注: PNG 的 EXIF 兼容性视系统版本而定)
-            // 如果 copyExif 内部实现是基于路径的，这里可能需要传入具体路径
-            // 但 MediaStore 写入后通常由系统管理，这里可选
         }
 
-        // 返回合成后的 Bitmap 用于 UI 展示
         return@withContext stampBitmap
 
     } catch (e: Exception) {

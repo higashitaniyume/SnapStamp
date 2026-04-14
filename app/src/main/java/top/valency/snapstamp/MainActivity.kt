@@ -66,7 +66,7 @@ fun MainScreen() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val navController = rememberNavController()
 
-    val imageCapture = remember { ImageCapture.Builder().build() }
+    val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).build() }
     val previewView = remember { PreviewView(context) }
 
     // --- 权限状态 ---
@@ -190,12 +190,6 @@ fun WelcomePermissionDialog(onDismiss: () -> Unit, onGrant: () -> Unit) {
                     icon = Icons.Default.CameraAlt,
                     title = "相机 (必要)",
                     description = "用于捕捉精彩瞬间并实时取景。"
-                )
-
-                PermissionItem(
-                    icon = Icons.Default.PhotoLibrary,
-                    title = "相册/存储 (必要)",
-                    description = "用于保存您的邮票照片及管理作品。"
                 )
 
                 PermissionItem(

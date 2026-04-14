@@ -22,8 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -51,10 +51,15 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // 动画状态：这里存储的是处理合成后的最终邮票图片
+    // 动画状态
     var processedStampBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val dropAnim = remember { Animatable(0f) }
     val alphaAnim = remember { Animatable(1f) }
+
+    // --- 对焦 UI 状态 ---
+    var tapOffset by remember { mutableStateOf<Offset?>(null) }
+    val focusScale = remember { Animatable(1.5f) }
+    val focusAlpha = remember { Animatable(0f) }
 
     val getRect = { size: IntSize ->
         val s = size.width * 0.75f
@@ -69,10 +74,27 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             .onGloballyPositioned { viewSize = it.size }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
+                    // 1. 获取点击位置并触发相机对焦+曝光调节
                     val factory = SurfaceOrientedMeteringPointFactory(size.width.toFloat(), size.height.toFloat())
-                    val action = FocusMeteringAction.Builder(factory.createPoint(offset.x, offset.y))
-                        .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                    val point = factory.createPoint(offset.x, offset.y)
+
+                    // 同时启用对焦 (AF) 和 自动曝光 (AE)
+                    val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                        .setAutoCancelDuration(3, TimeUnit.SECONDS) // 3秒后恢复全自动
+                        .build()
+
                     camera?.cameraControl?.startFocusAndMetering(action)
+
+                    // 2. 触发视觉反馈动画
+                    tapOffset = offset
+                    scope.launch {
+                        focusAlpha.snapTo(1f)
+                        focusScale.snapTo(1.5f)
+                        focusScale.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
+                        delay(500)
+                        focusAlpha.animateTo(0f, tween(300))
+                        tapOffset = null
+                    }
                 }
             }
             .pointerInput(Unit) {
@@ -82,28 +104,23 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                 }
             }
     ) {
-        // 1. 绘制预览遮罩和正确的邮票白边
+        // 1. 绘制预览遮罩和邮票边框
         ComposeCanvas(modifier = Modifier.fillMaxSize()) {
             val rect = getRect(viewSize)
 
-            // A. 绘制背景遮罩
+            // 背景遮罩
             clipPath(Path().apply { addRect(rect) }, clipOp = ClipOp.Difference) {
                 drawRect(Color.Black.copy(alpha = 0.6f))
             }
 
-            // B. 绘制邮票齿孔白边 (修正逻辑：白边在内，齿孔切掉边缘)
-            val borderOutset = 15f // 白边比取景框稍微大出一点点，用于容纳齿孔
+            // 邮票白边及齿孔绘制逻辑
+            val borderOutset = 15f
             val frameRect = Rect(rect.left - borderOutset, rect.top - borderOutset, rect.right + borderOutset, rect.bottom + borderOutset)
-
             val holeRadius = 12f
             val spacing = 45f
 
-            // 创建带齿孔的路径
-            val stampPath = Path().apply {
-                addRect(frameRect)
-            }
+            val stampPath = Path().apply { addRect(frameRect) }
             val holesPath = Path().apply {
-                // 定义画孔逻辑：圆心要在白边的边缘上，这样才能切出半圆
                 val drawEdgeHoles = { xStart: Float, yStart: Float, xEnd: Float, yEnd: Float ->
                     val isHor = yStart == yEnd
                     val len = if (isHor) xEnd - xStart else yEnd - yStart
@@ -114,22 +131,36 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                         addOval(Rect(px - holeRadius, py - holeRadius, px + holeRadius, py + holeRadius))
                     }
                 }
-                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.right, frameRect.top) // 上
-                drawEdgeHoles(frameRect.left, frameRect.bottom, frameRect.right, frameRect.bottom) // 下
-                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.left, frameRect.bottom) // 左
-                drawEdgeHoles(frameRect.right, frameRect.top, frameRect.right, frameRect.bottom) // 右
+                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.right, frameRect.top)
+                drawEdgeHoles(frameRect.left, frameRect.bottom, frameRect.right, frameRect.bottom)
+                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.left, frameRect.bottom)
+                drawEdgeHoles(frameRect.right, frameRect.top, frameRect.right, frameRect.bottom)
             }
 
-            // 用 Difference 操作减去圆孔，形成真正的邮票边缘
             val finalPath = Path.combine(PathOperation.Difference, stampPath, holesPath)
-
-            // 绘制白边，但要挖掉取景框中间部分
             clipPath(Path().apply { addRect(rect) }, clipOp = ClipOp.Difference) {
                 drawPath(finalPath, Color.White)
             }
+
+            // --- 绘制对焦框视觉反馈 ---
+            tapOffset?.let { offset ->
+                val size = 70.dp.toPx() * focusScale.value
+                drawRect(
+                    color = Color.White.copy(alpha = focusAlpha.value),
+                    topLeft = Offset(offset.x - size / 2, offset.y - size / 2),
+                    size = androidx.compose.ui.geometry.Size(size, size),
+                    style = Stroke(width = 2.dp.toPx())
+                )
+                // 对焦中心点
+                drawCircle(
+                    color = Color.White.copy(alpha = focusAlpha.value),
+                    radius = 4.dp.toPx(),
+                    center = offset
+                )
+            }
         }
 
-        // 2. 邮票掉落动画 (此时展示的是处理合成后的图片)
+        // 2. 邮票掉落动画展示
         processedStampBitmap?.let { bitmap ->
             val rect = getRect(viewSize)
             Box(
@@ -138,7 +169,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                     .graphicsLayer {
                         translationY = dropAnim.value * size.height
                         alpha = alphaAnim.value
-                        rotationZ = dropAnim.value * 15f // 增加点掉落旋转感
+                        rotationZ = dropAnim.value * 15f
                     },
                 contentAlignment = Alignment.TopCenter
             ) {
@@ -154,7 +185,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().padding(10.dp) // 这里的Padding就是邮票内的白边
+                        modifier = Modifier.fillMaxSize().padding(10.dp)
                     )
                 }
             }
@@ -176,8 +207,6 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
 
                             scope.launch(Dispatchers.Default) {
                                 val rect = getRect(viewSize)
-                                // 第一步：调用你的工具类处理并保存，获取合成后的 Bitmap
-                                // 假设 processAndSaveStamp 返回合成后的 Bitmap，如果不返回，请在内部生成
                                 val finalBitmap = processAndSaveStamp(
                                     bitmap, rotation, context,
                                     RectF(rect.left, rect.top, rect.right, rect.bottom),
@@ -185,12 +214,10 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                                 )
 
                                 withContext(Dispatchers.Main) {
-                                    // 第二步：处理完成后，将合成后的图片赋值给状态，触发动画
-                                    processedStampBitmap = finalBitmap as Bitmap?
+                                    processedStampBitmap = finalBitmap
                                     isProcessing = false
                                     Toast.makeText(context, "集邮成功！", Toast.LENGTH_SHORT).show()
 
-                                    // 第三步：执行掉落动画
                                     launch {
                                         dropAnim.animateTo(1.2f, tween(1000))
                                         processedStampBitmap = null
