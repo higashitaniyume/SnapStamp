@@ -60,7 +60,7 @@
     <string name="settings_show_feedback_entry">显示反馈入口</string>
     <string name="settings_build_info_value">版本：%1$s</string>
     <string name="settings_license_info_value">开源组件：CameraX、Compose、Coil、ExifInterface</string>
-    <string name="settings_feedback_entry_value">反馈邮箱：support@snapstamp.app</string>
+    <string name="settings_feedback_entry_value">反馈邮箱：support@valency.top</string>
 
     <string name="settings_current_percent">当前 %1$d%%</string>
     <string name="settings_current_int">当前 %1$d</string>
@@ -111,4 +111,5 @@
     <string name="stamp_back_location">坐标：%1$s</string>
     <string name="stamp_back_remark">备注：%1$s</string>
     <string name="stamp_back_postage">*已支付邮资*</string>
+    <string name="github_url">https://github.com/higashitaniyume/SnapStamp</string>
 </resources>

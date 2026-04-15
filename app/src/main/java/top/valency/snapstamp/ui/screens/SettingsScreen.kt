@@ -28,6 +28,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import top.valency.snapstamp.R
 import top.valency.snapstamp.data.SettingsStore
 
@@ -204,6 +210,27 @@ fun SettingsScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    val githubUrl = stringResource(R.string.github_url)
+                    val annotatedString = buildAnnotatedString {
+                        append("Github : ")
+                        withLink(LinkAnnotation.Url(githubUrl)) {
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline
+                                )
+                            ) {
+                                append(githubUrl)
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = annotatedString,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
                 }
             }
         }

@@ -60,7 +60,7 @@
     <string name="settings_show_feedback_entry">Show Feedback Entry</string>
     <string name="settings_build_info_value">Version: %1$s</string>
     <string name="settings_license_info_value">Open source: CameraX, Compose, Coil, ExifInterface</string>
-    <string name="settings_feedback_entry_value">Feedback: support@snapstamp.app</string>
+    <string name="settings_feedback_entry_value">Feedback: support@valency.top</string>
 
     <string name="settings_current_percent">Current %1$d%%</string>
     <string name="settings_current_int">Current %1$d</string>
@@ -111,4 +111,5 @@
     <string name="stamp_back_location">Location: %1$s</string>
     <string name="stamp_back_remark">Remark: %1$s</string>
     <string name="stamp_back_postage">*Postage Paid*</string>
+    <string name="github_url">https://github.com/higashitaniyume/SnapStamp</string>
 </resources>
