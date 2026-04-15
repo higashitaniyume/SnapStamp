@@ -2,7 +2,113 @@
 <resources>
     <string name="app_name">SnapStamp</string>
     <string name="camerascr_preview_lable_title">- 集邮预览区 -</string>
-    <string name="camerascr_preview_lable_text">"请将需要打卡的景物对准下方方框  "</string>
+    <string name="camerascr_preview_lable_text">请将需要打卡的景物对准下方方框</string>
     <string name="nav_camera_lable">相机</string>
     <string name="nav_library_lable">集邮册</string>
+    <string name="nav_settings_lable">设置</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_group_capture">拍摄设置</string>
+    <string name="settings_group_stamp">邮票与水印</string>
+    <string name="settings_group_filter">滤镜与预览</string>
+    <string name="settings_group_storage">存储与导出</string>
+    <string name="settings_group_privacy">隐私与权限</string>
+    <string name="settings_group_about">关于</string>
+
+    <string name="settings_capture_desc_1">设置默认变焦和曝光，提升拍摄效率。</string>
+    <string name="settings_capture_desc_2">控制对焦自动恢复时间与快门反馈。</string>
+    <string name="settings_capture_desc_3">控制取景辅助与拍后动画显示。</string>
+    <string name="settings_stamp_desc_1">控制默认导出样式与边框效果。</string>
+    <string name="settings_stamp_desc_2">管理位置/备注 Exif 写入策略。</string>
+    <string name="settings_stamp_desc_3">可选择在导出邮票图叠加信息角标。</string>
+    <string name="settings_filter_desc_1">设置默认预览模式与油画强度。</string>
+    <string name="settings_filter_desc_2">控制滤镜缓存与大图提醒。</string>
+    <string name="settings_storage_desc_1">调整 JPEG 质量与自动保存行为。</string>
+    <string name="settings_storage_desc_2">选择文件保留位置并自动清理缓存。</string>
+    <string name="settings_privacy_desc_1">控制定位精度与分享前隐私检查。</string>
+    <string name="settings_privacy_desc_2">管理本地备份与元数据保护。</string>
+    <string name="settings_about_desc_1">控制版本信息与许可证入口显示。</string>
+    <string name="settings_about_desc_2">保留反馈入口与支持信息。</string>
+
+    <string name="settings_default_zoom">默认变焦</string>
+    <string name="settings_default_exposure">默认曝光补偿</string>
+    <string name="settings_focus_reset">对焦自动恢复时间</string>
+    <string name="settings_shutter_feedback">拍摄反馈</string>
+    <string name="settings_framing_guide">取景辅助线</string>
+    <string name="settings_drop_animation">拍后动画</string>
+    <string name="settings_default_export_with_border">默认导出邮票图</string>
+    <string name="settings_border_strength">边框强度</string>
+    <string name="settings_border_classic">经典齿孔风格</string>
+    <string name="settings_write_location">写入位置信息到 Exif</string>
+    <string name="settings_write_remark">写入备注到 Exif</string>
+    <string name="settings_info_overlay">导出图叠加信息角标</string>
+    <string name="settings_preview_oil_default">默认油画预览</string>
+    <string name="settings_oil_strength">油画滤镜强度</string>
+    <string name="settings_filter_cache">启用滤镜缓存</string>
+    <string name="settings_large_image_warn">大图滤镜提醒</string>
+    <string name="settings_fast_preview_gesture">快速预览手势</string>
+    <string name="settings_jpeg_quality">原图 JPEG 质量</string>
+    <string name="settings_auto_save_after_shot">拍摄后自动保存</string>
+    <string name="settings_save_to_album">保存到系统相册</string>
+    <string name="settings_keep_internal_copy">保留应用私有副本</string>
+    <string name="settings_auto_clean_filter_cache">自动清理滤镜缓存</string>
+    <string name="settings_precise_location">使用精准位置</string>
+    <string name="settings_share_privacy_check">分享前隐私检查</string>
+    <string name="settings_allow_backup">允许系统备份</string>
+    <string name="settings_show_build_info">显示构建信息</string>
+    <string name="settings_show_license_info">显示许可证信息</string>
+    <string name="settings_show_feedback_entry">显示反馈入口</string>
+    <string name="settings_build_info_value">版本：%1$s</string>
+    <string name="settings_license_info_value">开源组件：CameraX、Compose、Coil、ExifInterface</string>
+    <string name="settings_feedback_entry_value">反馈邮箱：support@snapstamp.app</string>
+
+    <string name="settings_current_percent">当前 %1$d%%</string>
+    <string name="settings_current_int">当前 %1$d</string>
+    <string name="settings_current_seconds">当前 %1$d 秒</string>
+
+    <string name="main_permission_required">请授予相机权限以开始使用 SnapStamp</string>
+    <string name="welcome_title">欢迎使用 SnapStamp</string>
+    <string name="welcome_desc">为了给您的照片留下完美的足迹，我们需要以下权限：</string>
+    <string name="permission_camera_title">相机（必要）</string>
+    <string name="permission_camera_desc">用于捕捉精彩瞬间并实时取景。</string>
+    <string name="permission_location_title">位置信息（可选）</string>
+    <string name="permission_location_desc">用于在邮票上自动标记拍摄地点。</string>
+    <string name="permission_grant_now">立即授权</string>
+
+    <string name="camerascr_exposure">曝光</string>
+    <string name="camerascr_zoom">变焦</string>
+    <string name="camerascr_stamp_success">集邮成功！</string>
+
+    <string name="library_unknown_date">未知日期</string>
+    <string name="library_unknown_device">未知设备</string>
+    <string name="library_unknown_location">无位置信息</string>
+    <string name="library_large_image_warn">大图启用滤镜会更耗时</string>
+    <string name="library_saved_to_album">已保存到相册</string>
+    <string name="library_share_image">分享图片</string>
+    <string name="library_selected_count">已选择 %1$d</string>
+    <string name="library_title">我的集邮册</string>
+    <string name="library_date_display_format">yyyy年M月d日</string>
+    <string name="library_filter_original">原图</string>
+    <string name="library_filter_oil">油画</string>
+    <string name="library_action_remark">备注</string>
+    <string name="library_action_stamp">邮票</string>
+    <string name="library_action_original">原图</string>
+    <string name="library_action_share_stamp">分享邮票</string>
+    <string name="library_action_share_original">分享原图</string>
+    <string name="library_action_remove">移除</string>
+    <string name="library_delete_confirm_title">确认移除</string>
+    <string name="library_delete_confirm_text">将彻底从集邮册中移除 %1$d 张邮票及其滤镜副本。</string>
+    <string name="library_delete_confirm_action">确认移除</string>
+    <string name="library_edit_remark_title">编辑备注</string>
+    <string name="library_remark_exif_disabled">备注 Exif 写入已在设置中关闭</string>
+
+    <string name="common_cancel">取消</string>
+    <string name="common_save">保存</string>
+
+    <string name="stamp_back_title">SNAP STAMP</string>
+    <string name="stamp_back_date">日期：%1$s</string>
+    <string name="stamp_back_device">设备：%1$s</string>
+    <string name="stamp_back_location">坐标：%1$s</string>
+    <string name="stamp_back_remark">备注：%1$s</string>
+    <string name="stamp_back_postage">*已支付邮资*</string>
 </resources>

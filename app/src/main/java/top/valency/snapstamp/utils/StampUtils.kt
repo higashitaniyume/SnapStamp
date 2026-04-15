@@ -30,9 +30,15 @@ fun copyExif(sourcePath: String, destPath: String) {
 }
 
 // 绘制并生成带有锯齿孔洞的白边邮票位图
-fun createStampBitmap(cropped: Bitmap): Bitmap {
+fun createStampBitmap(
+    cropped: Bitmap,
+    borderStrength: Float = 0.5f,
+    classicStyle: Boolean = true,
+    showInfoOverlay: Boolean = false
+): Bitmap {
     val cropSize = cropped.width
-    val padding = cropSize * 0.05f
+    val normalizedBorder = borderStrength.coerceIn(0f, 1f)
+    val padding = cropSize * (0.03f + normalizedBorder * 0.06f)
     val finalSize = cropSize + (padding * 2).toInt()
     val stampBitmap = Bitmap.createBitmap(finalSize, finalSize, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(stampBitmap)
@@ -43,8 +49,8 @@ fun createStampBitmap(cropped: Bitmap): Bitmap {
     canvas.drawBitmap(cropped, padding, padding, null)
 
     paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-    val holeRadius = finalSize * 0.015f
-    val spacing = finalSize * 0.045f
+    val holeRadius = finalSize * if (classicStyle) 0.015f else 0.01f
+    val spacing = finalSize * if (classicStyle) 0.045f else 0.06f
     val stepCount = (finalSize / spacing).toInt().coerceAtLeast(1)
     val actualSpacing = finalSize.toFloat() / stepCount
 
@@ -54,6 +60,13 @@ fun createStampBitmap(cropped: Bitmap): Bitmap {
         canvas.drawCircle(center, finalSize.toFloat(), holeRadius, paint)
         canvas.drawCircle(0f, center, holeRadius, paint)
         canvas.drawCircle(finalSize.toFloat(), center, holeRadius, paint)
+    }
+
+    if (showInfoOverlay) {
+        paint.xfermode = null
+        paint.color = android.graphics.Color.argb(200, 0, 0, 0)
+        paint.textSize = finalSize * 0.045f
+        canvas.drawText("SnapStamp", padding, finalSize - padding / 2f, paint)
     }
     return stampBitmap
 }

@@ -36,6 +36,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -47,6 +50,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.valency.snapstamp.data.AppSettings
+import top.valency.snapstamp.data.SettingsStore
+import top.valency.snapstamp.R
 import top.valency.snapstamp.ui.components.StampShape
 import top.valency.snapstamp.utils.processAndSaveStamp
 import top.valency.snapstamp.utils.takePhotoWithPermission
@@ -55,8 +61,11 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    val settingsStore = remember(context) { SettingsStore(context) }
+    val settings by settingsStore.settingsFlow.collectAsState(initial = AppSettings())
 
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -89,6 +98,11 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
         }
     }
 
+    LaunchedEffect(camera, settings.defaultZoom, settings.defaultExposure) {
+        camera?.cameraControl?.setLinearZoom(settings.defaultZoom.coerceIn(0f, 1f))
+        camera?.cameraControl?.setExposureCompensationIndex(settings.defaultExposure)
+    }
+
     // 动画状态
     var processedStampBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val dropAnim = remember { Animatable(0f) }
@@ -118,7 +132,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
 
                     // 同时启用对焦 (AF) 和 自动曝光 (AE)
                     val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                        .setAutoCancelDuration(10, TimeUnit.SECONDS) // 3秒后恢复全自动
+                        .setAutoCancelDuration(settings.focusAutoResetSec.toLong(), TimeUnit.SECONDS)
                         .build()
 
                     camera?.cameraControl?.startFocusAndMetering(action)
@@ -178,25 +192,27 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             // 文本在 Y 轴的偏移量，让它悬浮在取景框上方
             val textOffsetY = with(density) { rect.top.toDp() - 70.dp }
 
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = textOffsetY),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "- 集邮预览区 -",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    letterSpacing = 2.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "请将需要打卡的景物对准下方方框",
-                    color = Color.LightGray,
-                    fontSize = 13.sp
-                )
+            if (settings.framingGuide) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = textOffsetY),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.camerascr_preview_lable_title),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        letterSpacing = 2.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.camerascr_preview_lable_text),
+                        color = Color.LightGray,
+                        fontSize = 13.sp
+                    )
+                }
             }
 
             // ====== 新增：两侧滑动条控制区 ======
@@ -208,7 +224,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             if (exposureRange.start < exposureRange.endInclusive) {
                 val leftCenterX = with(density) { (rect.left / 2).toDp() }
                 Text(
-                    text = "曝光",
+                    text = stringResource(R.string.camerascr_exposure),
                     color = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier
@@ -242,7 +258,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             // 右侧：变焦缩放
             val rightCenterX = with(density) { (rect.right + (viewSize.width - rect.right) / 2).toDp() }
             Text(
-                text = "变焦",
+                text = stringResource(R.string.camerascr_zoom),
                 color = Color.White,
                 fontSize = 12.sp,
                 modifier = Modifier
@@ -315,7 +331,10 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             onClick = {
                 if (isProcessing) return@ModernShutterButton
                 isProcessing = true
-                takePhotoWithPermission(context, fusedLocationClient) { loc ->
+                if (settings.shutterFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                takePhotoWithPermission(context, fusedLocationClient, settings.writeLocationExif) { loc ->
                     imageCapture.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(image: ImageProxy) {
                             val bitmap = image.toBitmap()
@@ -327,23 +346,33 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                                 val finalBitmap = processAndSaveStamp(
                                     bitmap, rotation, context,
                                     RectF(rect.left, rect.top, rect.right, rect.bottom),
-                                    viewSize.width, viewSize.height, loc
+                                    viewSize.width, viewSize.height, loc,
+                                    jpegQuality = settings.jpegQuality,
+                                    saveInternalCopy = settings.keepInternalCopy && settings.allowBackup,
+                                    autoSaveToAlbum = settings.autoSaveAfterShot && settings.saveToSystemAlbum,
+                                    borderStrength = settings.borderThickness,
+                                    borderClassicStyle = settings.borderClassicStyle,
+                                    infoVisibleOverlay = settings.infoVisibleOverlay
                                 )
 
                                 withContext(Dispatchers.Main) {
                                     processedStampBitmap = finalBitmap
                                     isProcessing = false
-                                    Toast.makeText(context, "集邮成功！", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.camerascr_stamp_success), Toast.LENGTH_SHORT).show()
 
-                                    launch {
-                                        dropAnim.animateTo(1.2f, tween(1000))
+                                    if (settings.dropAnimation) {
+                                        launch {
+                                            dropAnim.animateTo(1.2f, tween(1000))
+                                            processedStampBitmap = null
+                                            dropAnim.snapTo(0f)
+                                        }
+                                        launch {
+                                            delay(700)
+                                            alphaAnim.animateTo(0f, tween(300))
+                                            alphaAnim.snapTo(1f)
+                                        }
+                                    } else {
                                         processedStampBitmap = null
-                                        dropAnim.snapTo(0f)
-                                    }
-                                    launch {
-                                        delay(700)
-                                        alphaAnim.animateTo(0f, tween(300))
-                                        alphaAnim.snapTo(1f)
                                     }
                                 }
                             }

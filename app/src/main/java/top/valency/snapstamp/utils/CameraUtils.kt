@@ -22,7 +22,16 @@ import java.util.Locale
 import androidx.core.graphics.createBitmap
 
 // 拍照权限处理保持不变
-fun takePhotoWithPermission(context: Context, client: FusedLocationProviderClient, onResult: (android.location.Location?) -> Unit) {
+fun takePhotoWithPermission(
+    context: Context,
+    client: FusedLocationProviderClient,
+    includeLocation: Boolean,
+    onResult: (android.location.Location?) -> Unit
+) {
+    if (!includeLocation) {
+        onResult(null)
+        return
+    }
     val fineLoc = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
     val coarseLoc = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
     if (fineLoc == android.content.pm.PackageManager.PERMISSION_GRANTED || coarseLoc == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -44,7 +53,13 @@ suspend fun processAndSaveStamp(
     screenRect: RectF,
     viewW: Int,
     viewH: Int,
-    loc: android.location.Location?
+    loc: android.location.Location?,
+    jpegQuality: Int = 100,
+    saveInternalCopy: Boolean = true,
+    autoSaveToAlbum: Boolean = true,
+    borderStrength: Float = 0.5f,
+    borderClassicStyle: Boolean = true,
+    infoVisibleOverlay: Boolean = false
 ): Bitmap? = withContext(Dispatchers.IO) {
 
     // --- 第一部分：图像裁剪与旋转 (超清重写版) ---
@@ -96,41 +111,49 @@ suspend fun processAndSaveStamp(
 
     try {
         // --- 第二部分：保存到 App 私有目录 (.jpg) ---
-        val internalFile = File(context.filesDir, "$baseFileName.jpg")
-        FileOutputStream(internalFile).use { out ->
-            // 修改为 100 质量以保证极致清晰
-            cropped.compress(Bitmap.CompressFormat.JPEG, 100, out)
-        }
-
-        // 写入 EXIF 信息
-        val exif = ExifInterface(internalFile.absolutePath)
-        loc?.let { exif.setGpsInfo(it) }
-        exif.setAttribute(ExifInterface.TAG_MODEL, Build.MODEL)
-        exif.setAttribute(ExifInterface.TAG_DATETIME, SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(Date()))
-        exif.saveAttributes()
-
-        // --- 第三部分：合成带边框邮票并保存到相册 (.png) ---
-        val stampBitmap = createStampBitmap(cropped)
-
-        // 插入到系统相册
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "$baseFileName.png")
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
-            put(MediaStore.Images.Media.IS_PENDING, 1)
-        }
-
-        val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val uri = context.contentResolver.insert(collection, values)
-
-        uri?.let { targetUri ->
-            context.contentResolver.openOutputStream(targetUri)?.use { outStream ->
-                stampBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+        if (saveInternalCopy) {
+            val internalFile = File(context.filesDir, "$baseFileName.jpg")
+            FileOutputStream(internalFile).use { out ->
+                cropped.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(70, 100), out)
             }
 
-            values.clear()
-            values.put(MediaStore.Images.Media.IS_PENDING, 0)
-            context.contentResolver.update(targetUri, values, null, null)
+            // 写入 EXIF 信息
+            val exif = ExifInterface(internalFile.absolutePath)
+            loc?.let { exif.setGpsInfo(it) }
+            exif.setAttribute(ExifInterface.TAG_MODEL, Build.MODEL)
+            exif.setAttribute(ExifInterface.TAG_DATETIME, SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(Date()))
+            exif.saveAttributes()
+        }
+
+        // --- 第三部分：合成带边框邮票并保存到相册 (.png) ---
+        val stampBitmap = createStampBitmap(
+            cropped = cropped,
+            borderStrength = borderStrength,
+            classicStyle = borderClassicStyle,
+            showInfoOverlay = infoVisibleOverlay
+        )
+
+        if (autoSaveToAlbum) {
+            // 插入到系统相册
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$baseFileName.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+
+            val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val uri = context.contentResolver.insert(collection, values)
+
+            uri?.let { targetUri ->
+                context.contentResolver.openOutputStream(targetUri)?.use { outStream ->
+                    stampBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+                }
+
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                context.contentResolver.update(targetUri, values, null, null)
+            }
         }
 
         return@withContext stampBitmap

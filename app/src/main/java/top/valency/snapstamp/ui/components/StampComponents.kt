@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import top.valency.snapstamp.R
 import top.valency.snapstamp.model.StampModel
 import java.io.File
 
@@ -113,22 +115,28 @@ fun FlipStampCard(stamp: StampModel, displayFile: File? = null) {
             // 背面保持不变
             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.padding(24.dp), Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("SNAP STAMP", fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Text(stringResource(R.string.stamp_back_title), fontWeight = FontWeight.Bold, color = Color.Gray)
                     HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                    Text("日期: ${stamp.date}", fontSize = 12.sp, color = Color.Gray)
-                    Text("设备: ${stamp.info}", fontSize = 12.sp, color = Color.Gray)
-                    Text("坐标: ${stamp.location}", fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.stamp_back_date, stamp.date), fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.stamp_back_device, stamp.info), fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.stamp_back_location, stamp.location), fontSize = 12.sp, color = Color.Gray)
 
                     if (stamp.remark.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
-                        Text("备注: ${stamp.remark}", fontSize = 14.sp, color = Color.DarkGray, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+                        Text(
+                            stringResource(R.string.stamp_back_remark, stamp.remark),
+                            fontSize = 14.sp,
+                            color = Color.DarkGray,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
                     }
 
                     Spacer(Modifier.weight(1f))
                     androidx.compose.foundation.Canvas(Modifier.size(60.dp)) {
                         drawCircle(Color.LightGray, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
                     }
-                    Text("*已支付邮资*", fontSize = 10.sp, color = Color.LightGray)
+                    Text(stringResource(R.string.stamp_back_postage), fontSize = 10.sp, color = Color.LightGray)
                 }
             }
         }

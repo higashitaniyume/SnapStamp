@@ -6,6 +6,7 @@ import androidx.camera.core.ImageCapture
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -20,17 +21,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import top.valency.snapstamp.ui.screens.CameraOverlay
 import top.valency.snapstamp.ui.screens.LibraryScreen
+import top.valency.snapstamp.ui.screens.SettingsScreen
 import top.valency.snapstamp.R
 
 // 使用 @StringRes 确保传入的是有效的字符串资源 ID
 sealed class Screen(val route: String, @StringRes val title: Int, val icon: ImageVector) {
     object Camera : Screen("camera", R.string.nav_camera_lable, Icons.Default.PhotoCamera)
     object Library : Screen("library", R.string.nav_library_lable, Icons.Default.Collections)
+    object Settings : Screen("settings", R.string.nav_settings_lable, Icons.Default.Settings)
 }
 
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
-    val items = listOf(Screen.Camera, Screen.Library)
+    val items = listOf(Screen.Camera, Screen.Library, Screen.Settings)
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
@@ -72,6 +75,9 @@ fun NavigationGraph(
         }
         composable(Screen.Library.route) {
             LibraryScreen()
+        }
+        composable(Screen.Settings.route) {
+            SettingsScreen()
         }
     }
 }

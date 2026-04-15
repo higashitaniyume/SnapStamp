@@ -68,4 +68,5 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.play.services.location)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.datastore.preferences)
 }

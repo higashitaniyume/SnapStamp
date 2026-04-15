@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.rememberNavController
+import top.valency.snapstamp.R
 import top.valency.snapstamp.navigation.BottomNavigationBar
 import top.valency.snapstamp.navigation.NavigationGraph
 import top.valency.snapstamp.ui.theme.SnapStampTheme
@@ -146,7 +148,7 @@ fun MainScreen() {
         } else {
             // 没有权限时的占位图层
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("请授予相机权限以开始使用 SnapStamp", color = Color.Gray)
+                Text(stringResource(R.string.main_permission_required), color = Color.Gray)
             }
         }
 
@@ -178,7 +180,7 @@ fun WelcomePermissionDialog(onDismiss: () -> Unit, onGrant: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "欢迎使用 SnapStamp",
+                    text = stringResource(R.string.welcome_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -187,7 +189,7 @@ fun WelcomePermissionDialog(onDismiss: () -> Unit, onGrant: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "为了给您的照片留下完美的足迹，我们需要以下权限：",
+                    text = stringResource(R.string.welcome_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -198,14 +200,14 @@ fun WelcomePermissionDialog(onDismiss: () -> Unit, onGrant: () -> Unit) {
                 // 权限列表
                 PermissionItem(
                     icon = Icons.Default.CameraAlt,
-                    title = "相机 (必要)",
-                    description = "用于捕捉精彩瞬间并实时取景。"
+                    title = stringResource(R.string.permission_camera_title),
+                    description = stringResource(R.string.permission_camera_desc)
                 )
 
                 PermissionItem(
                     icon = Icons.Default.LocationOn,
-                    title = "位置信息 (可选)",
-                    description = "用于在邮票上自动标记拍摄地点。"
+                    title = stringResource(R.string.permission_location_title),
+                    description = stringResource(R.string.permission_location_desc)
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -216,7 +218,7 @@ fun WelcomePermissionDialog(onDismiss: () -> Unit, onGrant: () -> Unit) {
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(12.dp)
                 ) {
-                    Text("立即授权", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.permission_grant_now), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

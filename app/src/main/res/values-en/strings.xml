@@ -2,7 +2,113 @@
 <resources>
     <string name="app_name">SnapStamp</string>
     <string name="camerascr_preview_lable_title">- Stamp Collecting Preview Area -</string>
-    <string name="camerascr_preview_lable_text">"Please align the landmark you need to check in with the square box below.  "</string>
+    <string name="camerascr_preview_lable_text">Please align the landmark you need to check in with the square box below.</string>
     <string name="nav_camera_lable">Camera</string>
     <string name="nav_library_lable">Library</string>
+    <string name="nav_settings_lable">Settings</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_group_capture">Capture Settings</string>
+    <string name="settings_group_stamp">Stamp and Watermark</string>
+    <string name="settings_group_filter">Filter and Preview</string>
+    <string name="settings_group_storage">Storage and Export</string>
+    <string name="settings_group_privacy">Privacy and Permissions</string>
+    <string name="settings_group_about">About</string>
+
+    <string name="settings_capture_desc_1">Set default zoom/exposure for faster shooting.</string>
+    <string name="settings_capture_desc_2">Control focus auto-reset and shutter feedback.</string>
+    <string name="settings_capture_desc_3">Choose framing guide visibility and post-capture animation.</string>
+    <string name="settings_stamp_desc_1">Control default output style and border effect.</string>
+    <string name="settings_stamp_desc_2">Manage Exif write policy for location/remark.</string>
+    <string name="settings_stamp_desc_3">Optionally overlay info text on exported stamp images.</string>
+    <string name="settings_filter_desc_1">Set default preview mode and oil filter strength.</string>
+    <string name="settings_filter_desc_2">Control cache behavior and large-image warning.</string>
+    <string name="settings_storage_desc_1">Tune JPEG quality and auto save behavior.</string>
+    <string name="settings_storage_desc_2">Choose where files are kept and auto-clean cache.</string>
+    <string name="settings_privacy_desc_1">Control location precision and sharing privacy checks.</string>
+    <string name="settings_privacy_desc_2">Manage local backup and metadata protection.</string>
+    <string name="settings_about_desc_1">Toggle build/version and license visibility.</string>
+    <string name="settings_about_desc_2">Keep feedback entry and support shortcuts available.</string>
+
+    <string name="settings_default_zoom">Default Zoom</string>
+    <string name="settings_default_exposure">Default Exposure Compensation</string>
+    <string name="settings_focus_reset">Focus Auto Reset Time</string>
+    <string name="settings_shutter_feedback">Shutter Feedback</string>
+    <string name="settings_framing_guide">Framing Guide</string>
+    <string name="settings_drop_animation">Post-capture Animation</string>
+    <string name="settings_default_export_with_border">Default Export as Stamp</string>
+    <string name="settings_border_strength">Border Strength</string>
+    <string name="settings_border_classic">Classic Perforation Style</string>
+    <string name="settings_write_location">Write Location to Exif</string>
+    <string name="settings_write_remark">Write Remark to Exif</string>
+    <string name="settings_info_overlay">Overlay Info on Exported Stamp</string>
+    <string name="settings_preview_oil_default">Default Preview in Oil Mode</string>
+    <string name="settings_oil_strength">Oil Filter Strength</string>
+    <string name="settings_filter_cache">Enable Filter Cache</string>
+    <string name="settings_large_image_warn">Warn on Large Image Filtering</string>
+    <string name="settings_fast_preview_gesture">Fast Preview Gesture</string>
+    <string name="settings_jpeg_quality">Original JPEG Quality</string>
+    <string name="settings_auto_save_after_shot">Auto Save After Capture</string>
+    <string name="settings_save_to_album">Save to System Album</string>
+    <string name="settings_keep_internal_copy">Keep Internal Copy</string>
+    <string name="settings_auto_clean_filter_cache">Auto-clean Filter Cache</string>
+    <string name="settings_precise_location">Use Precise Location</string>
+    <string name="settings_share_privacy_check">Privacy Check Before Sharing</string>
+    <string name="settings_allow_backup">Allow System Backup</string>
+    <string name="settings_show_build_info">Show Build Info</string>
+    <string name="settings_show_license_info">Show License Info</string>
+    <string name="settings_show_feedback_entry">Show Feedback Entry</string>
+    <string name="settings_build_info_value">Version: %1$s</string>
+    <string name="settings_license_info_value">Open source: CameraX, Compose, Coil, ExifInterface</string>
+    <string name="settings_feedback_entry_value">Feedback: support@snapstamp.app</string>
+
+    <string name="settings_current_percent">Current %1$d%%</string>
+    <string name="settings_current_int">Current %1$d</string>
+    <string name="settings_current_seconds">Current %1$d sec</string>
+
+    <string name="main_permission_required">Please grant camera permission to start SnapStamp</string>
+    <string name="welcome_title">Welcome to SnapStamp</string>
+    <string name="welcome_desc">To leave perfect traces on your photos, we need the following permissions:</string>
+    <string name="permission_camera_title">Camera (Required)</string>
+    <string name="permission_camera_desc">Used to capture moments and provide real-time preview.</string>
+    <string name="permission_location_title">Location (Optional)</string>
+    <string name="permission_location_desc">Used to mark the shooting location on your stamp.</string>
+    <string name="permission_grant_now">Grant Now</string>
+
+    <string name="camerascr_exposure">Exposure</string>
+    <string name="camerascr_zoom">Zoom</string>
+    <string name="camerascr_stamp_success">Stamp created successfully!</string>
+
+    <string name="library_unknown_date">Unknown date</string>
+    <string name="library_unknown_device">Unknown device</string>
+    <string name="library_unknown_location">No location info</string>
+    <string name="library_large_image_warn">Large image filtering may take longer</string>
+    <string name="library_saved_to_album">Saved to album</string>
+    <string name="library_share_image">Share image</string>
+    <string name="library_selected_count">Selected %1$d</string>
+    <string name="library_title">My Stamp Album</string>
+    <string name="library_date_display_format">MMM d, yyyy</string>
+    <string name="library_filter_original">Original</string>
+    <string name="library_filter_oil">Oil</string>
+    <string name="library_action_remark">Remark</string>
+    <string name="library_action_stamp">Stamp</string>
+    <string name="library_action_original">Original</string>
+    <string name="library_action_share_stamp">Share Stamp</string>
+    <string name="library_action_share_original">Share Original</string>
+    <string name="library_action_remove">Remove</string>
+    <string name="library_delete_confirm_title">Confirm Removal</string>
+    <string name="library_delete_confirm_text">This will permanently remove %1$d stamp(s) and related filter copies from album.</string>
+    <string name="library_delete_confirm_action">Remove</string>
+    <string name="library_edit_remark_title">Edit Remark</string>
+    <string name="library_remark_exif_disabled">Remark Exif writing is disabled in settings</string>
+
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+
+    <string name="stamp_back_title">SNAP STAMP</string>
+    <string name="stamp_back_date">Date: %1$s</string>
+    <string name="stamp_back_device">Device: %1$s</string>
+    <string name="stamp_back_location">Location: %1$s</string>
+    <string name="stamp_back_remark">Remark: %1$s</string>
+    <string name="stamp_back_postage">*Postage Paid*</string>
 </resources>

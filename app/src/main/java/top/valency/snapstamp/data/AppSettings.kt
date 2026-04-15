@@ -1,0 +1,32 @@
+package top.valency.snapstamp.data
+
+data class AppSettings(
+    val defaultZoom: Float = 0.5f,
+    val defaultExposure: Int = 0,
+    val focusAutoResetSec: Int = 10,
+    val shutterFeedback: Boolean = true,
+    val framingGuide: Boolean = true,
+    val dropAnimation: Boolean = true,
+    val exportWithBorderDefault: Boolean = true,
+    val borderThickness: Float = 0.5f,
+    val borderClassicStyle: Boolean = true,
+    val writeLocationExif: Boolean = true,
+    val writeRemarkExif: Boolean = true,
+    val infoVisibleOverlay: Boolean = false,
+    val previewOilAsDefault: Boolean = false,
+    val oilFilterStrength: Float = 0.55f,
+    val filterCacheEnabled: Boolean = true,
+    val largeImageWarn: Boolean = true,
+    val previewGestureFast: Boolean = false,
+    val jpegQuality: Int = 100,
+    val autoSaveAfterShot: Boolean = true,
+    val saveToSystemAlbum: Boolean = true,
+    val keepInternalCopy: Boolean = true,
+    val autoCleanFilterCache: Boolean = false,
+    val preciseLocationMode: Boolean = true,
+    val sharePrivacyCheck: Boolean = true,
+    val allowBackup: Boolean = true,
+    val includeBuildInfo: Boolean = true,
+    val includeLicenseInfo: Boolean = true,
+    val showFeedbackEntry: Boolean = true
+)

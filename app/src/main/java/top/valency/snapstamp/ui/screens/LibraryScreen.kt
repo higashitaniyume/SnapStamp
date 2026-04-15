@@ -60,6 +60,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -72,15 +73,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.valency.snapstamp.data.AppSettings
+import top.valency.snapstamp.data.SettingsStore
 import top.valency.snapstamp.model.StampModel
+import top.valency.snapstamp.R
 import top.valency.snapstamp.ui.components.FlipStampCard
 import top.valency.snapstamp.ui.components.StampItem
 import top.valency.snapstamp.utils.applyOilPaintingFilter
@@ -93,13 +99,18 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.core.graphics.scale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val settingsStore = remember(context) { SettingsStore(context) }
+    val settings by settingsStore.settingsFlow.collectAsState(initial = AppSettings())
+    val unknownDateText = stringResource(R.string.library_unknown_date)
+    val unknownDeviceText = stringResource(R.string.library_unknown_device)
+    val unknownLocationText = stringResource(R.string.library_unknown_location)
+    val dateDisplayPattern = stringResource(R.string.library_date_display_format)
 
     // --- 状态管理 ---
     var stampList by remember { mutableStateOf<List<StampModel>>(emptyList()) }
@@ -131,9 +142,9 @@ fun LibraryScreen() {
                 mapped.add(
                     StampModel(
                         fileName = f.name, file = f,
-                        date = exif.getAttribute(ExifInterface.TAG_DATETIME) ?: "未知日期",
-                        info = exif.getAttribute(ExifInterface.TAG_MODEL) ?: "未知设备",
-                        location = exif.latLong?.let { "${String.format("%.2f", it[0])}, ${String.format("%.2f", it[1])}" } ?: "无位置信息",
+                        date = exif.getAttribute(ExifInterface.TAG_DATETIME) ?: unknownDateText,
+                        info = exif.getAttribute(ExifInterface.TAG_MODEL) ?: unknownDeviceText,
+                        location = exif.latLong?.let { "${String.format("%.2f", it[0])}, ${String.format("%.2f", it[1])}" } ?: unknownLocationText,
                         remark = exif.getAttribute(ExifInterface.TAG_USER_COMMENT)?.let { decodeRemark(it) } ?: ""
                     )
                 )
@@ -149,12 +160,17 @@ fun LibraryScreen() {
     fun toggleOilFilter(stamp: StampModel, enable: Boolean) {
         val oilFile = File(stamp.file.absolutePath.replace(".jpg", "_OIL.jpg"))
         if (enable) {
-            if (oilFile.exists()) {
+            if (settings.filterCacheEnabled && oilFile.exists()) {
                 currentDisplayFile = oilFile
             } else {
                 isOperating = true
                 scope.launch(Dispatchers.IO) {
                     val original = BitmapFactory.decodeFile(stamp.file.absolutePath) ?: return@launch
+                    if (settings.largeImageWarn && maxOf(original.width, original.height) > 2500) {
+                        withContext(Dispatchers.Main) {
+                                Toast.makeText(context, context.getString(R.string.library_large_image_warn), Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     val maxDim = 800f
                     val scale = minOf(1f, maxDim / maxOf(original.width, original.height))
                     val processBitmap = if (scale < 1f) {
@@ -167,11 +183,18 @@ fun LibraryScreen() {
                     } else {
                         original
                     }
-                    val filtered = applyOilPaintingFilter(processBitmap, radius = 7, levels = 20)
-                    FileOutputStream(oilFile).use { out -> filtered.compress(Bitmap.CompressFormat.JPEG, 100, out) }
+                    val radius = (4 + settings.oilFilterStrength * 6).toInt().coerceIn(4, 10)
+                    val levels = (26 - settings.oilFilterStrength * 12).toInt().coerceIn(10, 26)
+                    val filtered = applyOilPaintingFilter(processBitmap, radius = radius, levels = levels)
+                    val targetFile = if (settings.filterCacheEnabled) {
+                        oilFile
+                    } else {
+                        File(context.cacheDir, "TEMP_OIL_${System.currentTimeMillis()}.jpg")
+                    }
+                    FileOutputStream(targetFile).use { out -> filtered.compress(Bitmap.CompressFormat.JPEG, 100, out) }
                     processBitmap.recycle()
                     filtered.recycle()
-                    withContext(Dispatchers.Main) { currentDisplayFile = oilFile; isOperating = false }
+                    withContext(Dispatchers.Main) { currentDisplayFile = targetFile; isOperating = false }
                 }
             }
         } else {
@@ -198,7 +221,12 @@ fun LibraryScreen() {
                         context.contentResolver.openOutputStream(uri)?.use { out ->
                             if (withBorder) {
                                 val bitmap = BitmapFactory.decodeFile(fileToProcess.absolutePath)
-                                val stamped = createStampBitmap(bitmap)
+                                val stamped = createStampBitmap(
+                                    cropped = bitmap,
+                                    borderStrength = settings.borderThickness,
+                                    classicStyle = settings.borderClassicStyle,
+                                    showInfoOverlay = settings.infoVisibleOverlay
+                                )
                                 stamped.compress(Bitmap.CompressFormat.PNG, 100, out)
                             } else {
                                 FileInputStream(fileToProcess).use { it.copyTo(out) }
@@ -208,7 +236,7 @@ fun LibraryScreen() {
                 } catch (e: Exception) { Log.e("Save", "Error", e) }
             }
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.library_saved_to_album), Toast.LENGTH_SHORT).show()
                 isOperating = false
             }
         }
@@ -224,11 +252,35 @@ fun LibraryScreen() {
                     val fileToProcess = if (stamps.size == 1 && selectedStampForPreview == stamp) currentDisplayFile ?: stamp.file else stamp.file
                     val fileToShare = if (withBorder) {
                         val bitmap = BitmapFactory.decodeFile(fileToProcess.absolutePath)
-                        val stamped = createStampBitmap(bitmap)
+                        val stamped = createStampBitmap(
+                            cropped = bitmap,
+                            borderStrength = settings.borderThickness,
+                            classicStyle = settings.borderClassicStyle,
+                            showInfoOverlay = settings.infoVisibleOverlay
+                        )
                         val temp = File(context.cacheDir, "SHARE_${System.currentTimeMillis()}.png")
                         FileOutputStream(temp).use { stamped.compress(Bitmap.CompressFormat.PNG, 100, it) }
                         temp
-                    } else fileToProcess
+                    } else {
+                        if (!settings.sharePrivacyCheck) {
+                            fileToProcess
+                        } else {
+                            val temp = File(context.cacheDir, "SHARE_PRIV_${System.currentTimeMillis()}.jpg")
+                            FileInputStream(fileToProcess).use { input ->
+                                FileOutputStream(temp).use { output -> input.copyTo(output) }
+                            }
+                            try {
+                                val exif = ExifInterface(temp.absolutePath)
+                                exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE, null)
+                                exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE_REF, null)
+                                exif.setAttribute(ExifInterface.TAG_GPS_LONGITUDE, null)
+                                exif.setAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF, null)
+                                exif.setAttribute(ExifInterface.TAG_USER_COMMENT, null)
+                                exif.saveAttributes()
+                            } catch (_: Exception) { }
+                            temp
+                        }
+                    }
                     uris.add(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", fileToShare))
                 }
                 val intent = Intent(if (uris.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND).apply {
@@ -237,7 +289,7 @@ fun LibraryScreen() {
                     else putExtra(Intent.EXTRA_STREAM, uris[0])
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "分享图片"))
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.library_share_image)))
             } catch (_: Exception) { }
             withContext(Dispatchers.Main) { isOperating = false }
         }
@@ -270,7 +322,15 @@ fun LibraryScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isSelectionMode) "已选择 ${selectedItems.size}" else "我的集邮册") },
+                title = {
+                    Text(
+                        if (isSelectionMode) {
+                            context.getString(R.string.library_selected_count, selectedItems.size)
+                        } else {
+                            stringResource(R.string.library_title)
+                        }
+                    )
+                },
                 actions = {
                     if (isSelectionMode) {
                         IconButton(onClick = { isSelectionMode = false; selectedItems.clear() }) { Icon(Icons.Default.Close, null) }
@@ -304,7 +364,7 @@ fun LibraryScreen() {
                     val rawDate = stamp.date.take(10) // 原始格式 "2026:01:01"
                     try {
                         val inputFormat = SimpleDateFormat("yyyy:MM:dd", Locale.getDefault())
-                        val outputFormat = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
+                        val outputFormat = SimpleDateFormat(dateDisplayPattern, Locale.getDefault())
                         val dateObj = inputFormat.parse(rawDate)
                         if (dateObj != null) outputFormat.format(dateObj) else rawDate
                     } catch (_: Exception) {
@@ -331,6 +391,9 @@ fun LibraryScreen() {
                                     else {
                                         selectedStampForPreview = stamp
                                         currentDisplayFile = stamp.file
+                                        if (settings.previewOilAsDefault) {
+                                            toggleOilFilter(stamp, true)
+                                        }
                                     }
                                 },
                                 onLongClick = { if(!isSelectionMode) { isSelectionMode = true; selectedItems.add(stamp) } }
@@ -354,18 +417,18 @@ fun LibraryScreen() {
                             Spacer(Modifier.height(24.dp))
                             Row(Modifier.background(Color.White.copy(alpha = 0.1f), CircleShape).padding(4.dp)) {
                                 val isOil = currentDisplayFile?.name?.contains("_OIL") == true
-                                FilterTab("原图", !isOil) { toggleOilFilter(stamp, false) }
-                                FilterTab("油画", isOil) { toggleOilFilter(stamp, true) }
+                                FilterTab(stringResource(R.string.library_filter_original), !isOil) { toggleOilFilter(stamp, false) }
+                                FilterTab(stringResource(R.string.library_filter_oil), isOil) { toggleOilFilter(stamp, true) }
                             }
                             Spacer(Modifier.height(24.dp))
                             Surface(color = Color.White.copy(alpha = 0.1f), shape = RoundedCornerShape(32.dp)) {
                                 Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    PreviewActionBtn(Icons.Default.Edit, "备注") { remarkText = stamp.remark; showRemarkDialog = stamp }
-                                    PreviewActionBtn(Icons.Default.Save, "邮票") { performSave(listOf(stamp), true) }
-                                    PreviewActionBtn(Icons.Default.Image, "原图") { performSave(listOf(stamp), false) }
-                                    PreviewActionBtn(Icons.Default.Share, "分享邮票") { performShare(listOf(stamp), true) }
-                                    PreviewActionBtn(Icons.Default.IosShare, "分享原图") { performShare(listOf(stamp), false) }
-                                    PreviewActionBtn(Icons.Default.Delete, "移除", Color.Red) { showDeleteConfirm = listOf(stamp) }
+                                    PreviewActionBtn(Icons.Default.Edit, stringResource(R.string.library_action_remark)) { remarkText = stamp.remark; showRemarkDialog = stamp }
+                                    PreviewActionBtn(Icons.Default.Save, stringResource(R.string.library_action_stamp)) { performSave(listOf(stamp), settings.exportWithBorderDefault) }
+                                    PreviewActionBtn(Icons.Default.Image, stringResource(R.string.library_action_original)) { performSave(listOf(stamp), !settings.exportWithBorderDefault) }
+                                    PreviewActionBtn(Icons.Default.Share, stringResource(R.string.library_action_share_stamp)) { performShare(listOf(stamp), true) }
+                                    PreviewActionBtn(Icons.Default.IosShare, stringResource(R.string.library_action_share_original)) { performShare(listOf(stamp), false) }
+                                    PreviewActionBtn(Icons.Default.Delete, stringResource(R.string.library_action_remove), Color.Red) { showDeleteConfirm = listOf(stamp) }
                                 }
                             }
                         }
@@ -382,31 +445,37 @@ fun LibraryScreen() {
     if (showDeleteConfirm != null) {
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("确认移除") },
-            text = { Text("将彻底从集邮册中移除 ${showDeleteConfirm?.size} 张邮票及其滤镜副本。") },
+            title = { Text(stringResource(R.string.library_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.library_delete_confirm_text, showDeleteConfirm?.size ?: 0)) },
             confirmButton = {
-                Button(onClick = { performDelete(showDeleteConfirm!!); showDeleteConfirm = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("确认移除") }
+                Button(onClick = { performDelete(showDeleteConfirm!!); showDeleteConfirm = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.library_delete_confirm_action)) }
             },
-            dismissButton = { TextButton(onClick = { }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 
     if (showRemarkDialog != null) {
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("编辑备注") },
+            title = { Text(stringResource(R.string.library_edit_remark_title)) },
             text = { OutlinedTextField(value = remarkText, onValueChange = { if (it.length <= 50) remarkText = it }) },
             confirmButton = {
                 TextButton(onClick = {
                     val stamp = showRemarkDialog!!
                     scope.launch(Dispatchers.IO) {
+                        if (!settings.writeRemarkExif) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, context.getString(R.string.library_remark_exif_disabled), Toast.LENGTH_SHORT).show()
+                            }
+                            return@launch
+                        }
                         val exif = ExifInterface(stamp.file.absolutePath)
                         exif.setAttribute(ExifInterface.TAG_USER_COMMENT, encodeRemark(remarkText))
                         exif.saveAttributes()
                         load()
                     }
                     showRemarkDialog = null
-                }) { Text("保存") }
+                }) { Text(stringResource(R.string.common_save)) }
             }
         )
     }
