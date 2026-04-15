@@ -307,7 +307,7 @@ fun LibraryScreen() {
                         val outputFormat = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
                         val dateObj = inputFormat.parse(rawDate)
                         if (dateObj != null) outputFormat.format(dateObj) else rawDate
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         rawDate
                     }
                 }
@@ -387,7 +387,7 @@ fun LibraryScreen() {
             confirmButton = {
                 Button(onClick = { performDelete(showDeleteConfirm!!); showDeleteConfirm = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("确认移除") }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { }) { Text("取消") } }
         )
     }
 

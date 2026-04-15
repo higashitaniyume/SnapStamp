@@ -1,7 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SnapStamp</string>
     <string name="camerascr_preview_lable_title">- Stamp Collecting Preview Area -</string>
-    <string name="camerascr_preview_lable_text">Please align the landmark you need to check in with the square box below.</string>
+    <string name="camerascr_preview_lable_text">"Please align the landmark you need to check in with the square box below.  "</string>
     <string name="nav_camera_lable">Camera</string>
     <string name="nav_library_lable">Library</string>
 </resources>

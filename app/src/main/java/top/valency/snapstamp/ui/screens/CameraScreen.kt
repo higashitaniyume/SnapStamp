@@ -7,19 +7,25 @@ import androidx.camera.core.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.*
@@ -29,9 +35,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -50,6 +60,34 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
 
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     var isProcessing by remember { mutableStateOf(false) }
+
+    // --- 相机控制状态 (变焦和曝光) ---
+    var zoomValue by remember { mutableFloatStateOf(0f) }
+    var exposureValue by remember { mutableFloatStateOf(0f) }
+    var exposureRange by remember { mutableStateOf(-10f..10f) }
+
+    DisposableEffect(camera) {
+        // 监听 CameraX 底层的变焦变化（用于双指缩放同步 Slider）
+        val zoomObserver = Observer<ZoomState> { state ->
+            zoomValue = state.linearZoom
+        }
+        camera?.cameraInfo?.zoomState?.observeForever(zoomObserver)
+
+        // 初始化曝光状态
+        camera?.cameraInfo?.exposureState?.let { expState ->
+            val range = expState.exposureCompensationRange
+            if (range.lower < range.upper) {
+                exposureRange = range.lower.toFloat()..range.upper.toFloat()
+            } else {
+                exposureRange = 0f..0f // 设备不支持调整曝光
+            }
+            exposureValue = expState.exposureCompensationIndex.toFloat()
+        }
+
+        onDispose {
+            camera?.cameraInfo?.zoomState?.removeObserver(zoomObserver)
+        }
+    }
 
     // 动画状态
     var processedStampBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -80,7 +118,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
 
                     // 同时启用对焦 (AF) 和 自动曝光 (AE)
                     val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                        .setAutoCancelDuration(3, TimeUnit.SECONDS) // 3秒后恢复全自动
+                        .setAutoCancelDuration(10, TimeUnit.SECONDS) // 3秒后恢复全自动
                         .build()
 
                     camera?.cameraControl?.startFocusAndMetering(action)
@@ -99,47 +137,19 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             }
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
+                    // 双指变焦时触发 (Slider 会通过 Observer 自动更新)
                     val currentZoom = camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
                     camera?.cameraControl?.setZoomRatio(currentZoom * zoom)
                 }
             }
     ) {
-        // 1. 绘制预览遮罩和邮票边框
+        // 1. 绘制预览遮罩
         ComposeCanvas(modifier = Modifier.fillMaxSize()) {
             val rect = getRect(viewSize)
 
-            // 背景遮罩
+            // 背景遮罩改为完全不透明的纯黑色，挖空中间预览区
             clipPath(Path().apply { addRect(rect) }, clipOp = ClipOp.Difference) {
-                drawRect(Color.Black.copy(alpha = 0.6f))
-            }
-
-            // 邮票白边及齿孔绘制逻辑
-            val borderOutset = 15f
-            val frameRect = Rect(rect.left - borderOutset, rect.top - borderOutset, rect.right + borderOutset, rect.bottom + borderOutset)
-            val holeRadius = 12f
-            val spacing = 45f
-
-            val stampPath = Path().apply { addRect(frameRect) }
-            val holesPath = Path().apply {
-                val drawEdgeHoles = { xStart: Float, yStart: Float, xEnd: Float, yEnd: Float ->
-                    val isHor = yStart == yEnd
-                    val len = if (isHor) xEnd - xStart else yEnd - yStart
-                    val steps = (len / spacing).toInt()
-                    for (i in 0..steps) {
-                        val px = if (isHor) xStart + i * (len / steps) else xStart
-                        val py = if (isHor) yStart else yStart + i * (len / steps)
-                        addOval(Rect(px - holeRadius, py - holeRadius, px + holeRadius, py + holeRadius))
-                    }
-                }
-                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.right, frameRect.top)
-                drawEdgeHoles(frameRect.left, frameRect.bottom, frameRect.right, frameRect.bottom)
-                drawEdgeHoles(frameRect.left, frameRect.top, frameRect.left, frameRect.bottom)
-                drawEdgeHoles(frameRect.right, frameRect.top, frameRect.right, frameRect.bottom)
-            }
-
-            val finalPath = Path.combine(PathOperation.Difference, stampPath, holesPath)
-            clipPath(Path().apply { addRect(rect) }, clipOp = ClipOp.Difference) {
-                drawPath(finalPath, Color.White)
+                drawRect(Color.Black)
             }
 
             // --- 绘制对焦框视觉反馈 ---
@@ -160,7 +170,110 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             }
         }
 
-        // 2. 邮票掉落动画展示
+        // 2. 附加UI (指导语 及 两侧滑动条)
+        if (viewSize != IntSize.Zero && camera != null) {
+            val rect = getRect(viewSize)
+            val density = LocalDensity.current
+
+            // 文本在 Y 轴的偏移量，让它悬浮在取景框上方
+            val textOffsetY = with(density) { rect.top.toDp() - 70.dp }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = textOffsetY),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "- 集邮预览区 -",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "请将需要打卡的景物对准下方方框",
+                    color = Color.LightGray,
+                    fontSize = 13.sp
+                )
+            }
+
+            // ====== 新增：两侧滑动条控制区 ======
+            val sliderLengthDp = with(density) { rect.height.toDp() }
+            val sliderWidthDp = 40.dp
+            val sliderCenterY = with(density) { (rect.top + rect.height / 2).toDp() }
+
+            // 左侧：曝光调整
+            if (exposureRange.start < exposureRange.endInclusive) {
+                val leftCenterX = with(density) { (rect.left / 2).toDp() }
+                Text(
+                    text = "曝光",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = leftCenterX - 12.dp, y = with(density) { rect.top.toDp() } - 30.dp)
+                )
+                Slider(
+                    value = exposureValue,
+                    valueRange = exposureRange,
+                    onValueChange = { v ->
+                        exposureValue = v
+                        camera.cameraControl.setExposureCompensationIndex(v.toInt())
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White.copy(alpha = 0.8f),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(
+                            x = leftCenterX - sliderLengthDp / 2, // 确保横置时中心点对齐
+                            y = sliderCenterY - sliderWidthDp / 2
+                        )
+                        .width(sliderLengthDp)
+                        .height(sliderWidthDp)
+                        .rotate(-90f) // 旋转实现垂直滑动条
+                )
+            }
+
+            // 右侧：变焦缩放
+            val rightCenterX = with(density) { (rect.right + (viewSize.width - rect.right) / 2).toDp() }
+            Text(
+                text = "变焦",
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = rightCenterX - 12.dp, y = with(density) { rect.top.toDp() } - 30.dp)
+            )
+            Slider(
+                value = zoomValue,
+                valueRange = 0f..1f,
+                onValueChange = { v ->
+                    zoomValue = v
+                    camera.cameraControl.setLinearZoom(v)
+                },
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color.White.copy(alpha = 0.8f),
+                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(
+                        x = rightCenterX - sliderLengthDp / 2,
+                        y = sliderCenterY - sliderWidthDp / 2
+                    )
+                    .width(sliderLengthDp)
+                    .height(sliderWidthDp)
+                    .rotate(-90f)
+            )
+        }
+
+        // 3. 邮票掉落动画展示
         processedStampBitmap?.let { bitmap ->
             val rect = getRect(viewSize)
             Box(
@@ -185,18 +298,22 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().padding(10.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(10.dp)
                     )
                 }
             }
         }
 
-        if (isProcessing) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
-
-        // 3. 拍照按钮
-        Button(
+        // 4. 拍照按钮
+        ModernShutterButton(
+            isProcessing = isProcessing,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 60.dp),
             onClick = {
-                if (isProcessing) return@Button
+                if (isProcessing) return@ModernShutterButton
                 isProcessing = true
                 takePhotoWithPermission(context, fusedLocationClient) { loc ->
                     imageCapture.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
@@ -234,9 +351,71 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                         override fun onError(exc: ImageCaptureException) { isProcessing = false }
                     })
                 }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 60.dp).size(80.dp),
-            shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = Color.White), enabled = !isProcessing
-        ) { Box(modifier = Modifier.size(65.dp).border(4.dp, Color.LightGray, CircleShape)) }
+            }
+        )
+    }
+}
+
+// ==========================================
+// 现代化快门按钮组件
+// ==========================================
+@Composable
+fun ModernShutterButton(
+    isProcessing: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "button_scale"
+    )
+
+    val innerCircleSize by animateDpAsState(
+        targetValue = if (isProcessing) 42.dp else 66.dp,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "inner_circle_size"
+    )
+
+    Box(
+        modifier = modifier
+            .size(84.dp)
+            .scale(scale)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = !isProcessing,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // 外层细边框白环
+        ComposeCanvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                color = Color.White,
+                radius = size.minDimension / 2,
+                style = Stroke(width = 4.dp.toPx())
+            )
+        }
+
+        // 内层实体圆
+        Box(
+            modifier = Modifier
+                .size(innerCircleSize)
+                .clip(CircleShape)
+                .background(if (isProcessing) Color.White.copy(alpha = 0.8f) else Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isProcessing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(26.dp),
+                    color = Color.Black,
+                    strokeWidth = 2.5.dp
+                )
+            }
+        }
     }
 }

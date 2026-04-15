@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SnapStamp</string>
+    <string name="camerascr_preview_lable_title">- 集邮预览区 -</string>
+    <string name="camerascr_preview_lable_text">"请将需要打卡的景物对准下方方框  "</string>
+    <string name="nav_camera_lable">相机</string>
+    <string name="nav_library_lable">集邮册</string>
+</resources>
