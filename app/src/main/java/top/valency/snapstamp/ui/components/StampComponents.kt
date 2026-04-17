@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,6 +50,7 @@ class StampShape(private val holeRadius: Float = 15f, private val spacing: Float
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val rectPath = Path().apply { addRect(Rect(0f, 0f, size.width, size.height)) }
         val holesPath = Path().apply {
+            // 这个逻辑已经可以完美适应长方形，无需修改
             drawHoles(this, size.width, isHorizontal = true, y = 0f)
             drawHoles(this, size.width, isHorizontal = true, y = size.height)
             drawHoles(this, size.height, isHorizontal = false, x = 0f)
@@ -72,13 +74,31 @@ class StampShape(private val holeRadius: Float = 15f, private val spacing: Float
 @Composable
 fun StampItem(stamp: StampModel, onClick: () -> Unit, onLongClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.75f) // 【修改】3:4 标准竖直长宽比
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .graphicsLayer { shape = StampShape(holeRadius = 10f, spacing = 30f); clip = true },
         color = Color.White, shadowElevation = 6.dp
     ) {
-        Box(Modifier.fillMaxSize().padding(12.dp)) {
-            AsyncImage(model = stamp.file, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // 【修改】改为 Column 排版，上方放图，下方放日期
+        Column(Modifier.fillMaxSize().padding(12.dp)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                AsyncImage(
+                    model = stamp.file,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit // 【修改】保持比例居中
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stamp.date,
+                fontSize = 12.sp,
+                color = Color.DarkGray,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start) // 【修改】日期靠左
+            )
         }
     }
 }
@@ -88,27 +108,36 @@ fun FlipStampCard(stamp: StampModel, displayFile: File? = null) {
     var flipped by remember { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (flipped) 180f else 0f, tween(600), label = "")
 
-    // 如果外部没传 displayFile，默认用 stamp.file
     val fileToShow = displayFile ?: stamp.file
 
     Surface(
-        modifier = Modifier.size(320.dp).graphicsLayer {
+        // 【修改】固定尺寸改为 300x400 的长方形
+        modifier = Modifier.size(width = 300.dp, height = 400.dp).graphicsLayer {
             rotationY = rotation
             cameraDistance = 15 * density
-            // 注意：StampShape 是你自定义的绘制形状，确保它在这里正确引用
             shape = StampShape(15f, 45f)
             clip = true
         }.clickable { flipped = !flipped },
         color = Color.White, shadowElevation = 12.dp
     ) {
         if (rotation <= 90f) {
-            Box(Modifier.fillMaxSize().padding(20.dp)) {
-                // 使用 AsyncImage 加载当前指定的文件
-                AsyncImage(
-                    model = fileToShow,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+            // 【修改】正面改为上方图、下方日期的布局
+            Column(Modifier.fillMaxSize().padding(20.dp)) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    AsyncImage(
+                        model = fileToShow,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit // 保持比例居中
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stamp.date,
+                    fontSize = 16.sp,
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Start) // 日期靠左
                 )
             }
         } else {

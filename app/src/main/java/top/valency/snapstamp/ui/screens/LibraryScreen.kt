@@ -1,5 +1,6 @@
 package top.valency.snapstamp.ui.screens
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
@@ -83,6 +84,7 @@ import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import top.valency.snapstamp.data.AppSettings
 import top.valency.snapstamp.data.SettingsStore
 import top.valency.snapstamp.model.StampModel
@@ -100,6 +102,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen() {
@@ -137,7 +140,7 @@ fun LibraryScreen() {
 
             val mapped = mutableListOf<StampModel>()
             for (f in files.sortedByDescending { it.lastModified() }) {
-                kotlinx.coroutines.yield()
+                yield()
                 val exif = ExifInterface(f.absolutePath)
                 mapped.add(
                     StampModel(
@@ -157,6 +160,7 @@ fun LibraryScreen() {
     // --- 核心操作逻辑 ---
 
     // 滤镜生成逻辑
+
     fun toggleOilFilter(stamp: StampModel, enable: Boolean) {
         val oilFile = File(stamp.file.absolutePath.replace(".jpg", "_OIL.jpg"))
         if (enable) {
@@ -168,7 +172,7 @@ fun LibraryScreen() {
                     val original = BitmapFactory.decodeFile(stamp.file.absolutePath) ?: return@launch
                     if (settings.largeImageWarn && maxOf(original.width, original.height) > 2500) {
                         withContext(Dispatchers.Main) {
-                                Toast.makeText(context, context.getString(R.string.library_large_image_warn), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.library_large_image_warn), Toast.LENGTH_SHORT).show()
                         }
                     }
                     val maxDim = 800f
@@ -203,6 +207,7 @@ fun LibraryScreen() {
     }
 
     // 保存到相册
+
     fun performSave(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -225,7 +230,8 @@ fun LibraryScreen() {
                                     cropped = bitmap,
                                     borderStrength = settings.borderThickness,
                                     classicStyle = settings.borderClassicStyle,
-                                    showInfoOverlay = settings.infoVisibleOverlay
+                                    showInfoOverlay = settings.infoVisibleOverlay,
+                                    date = stamp.date // 【修改了这里】将 TODO() 改为 stamp.date
                                 )
                                 stamped.compress(Bitmap.CompressFormat.PNG, 100, out)
                             } else {
@@ -242,6 +248,7 @@ fun LibraryScreen() {
         }
     }
 
+
     // 分享
     fun performShare(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
@@ -256,7 +263,8 @@ fun LibraryScreen() {
                             cropped = bitmap,
                             borderStrength = settings.borderThickness,
                             classicStyle = settings.borderClassicStyle,
-                            showInfoOverlay = settings.infoVisibleOverlay
+                            showInfoOverlay = settings.infoVisibleOverlay,
+                            date = stamp.date // 【修改了这里】补充了缺失的 date 传参
                         )
                         val temp = File(context.cacheDir, "SHARE_${System.currentTimeMillis()}.png")
                         FileOutputStream(temp).use { stamped.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -317,6 +325,7 @@ fun LibraryScreen() {
         if (selectedStampForPreview != null) selectedStampForPreview = null
         else { isSelectionMode = false; selectedItems.clear() }
     }
+
 
     // --- UI 界面 ---
     Scaffold(

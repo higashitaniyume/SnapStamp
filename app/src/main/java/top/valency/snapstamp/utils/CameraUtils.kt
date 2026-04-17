@@ -130,7 +130,8 @@ suspend fun processAndSaveStamp(
             cropped = cropped,
             borderStrength = borderStrength,
             classicStyle = borderClassicStyle,
-            showInfoOverlay = infoVisibleOverlay
+            showInfoOverlay = infoVisibleOverlay,
+            date = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(Date())
         )
 
         if (autoSaveToAlbum) {
