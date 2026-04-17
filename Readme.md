@@ -1,52 +1,32 @@
 # SnapStamp
 
-**SnapStamp** is a feature-rich Android photography app that turns ordinary photos into artistic stamp-style keepsakes. Designed with Jetpack Compose and CameraX, the app combines easy photo capture, automatic location tagging, and a polished gallery experience.
+SnapStamp is a specialized camera application designed to transform your photography into a digital stamp collection. It combines visual capture with contextual information to create commemorative digital stamps that preserve the essence of your moments.
 
-## What SnapStamp Does
+## Core Functions
 
-* Capture photos directly in the app using the camera.
-* Automatically crop images into a stamp-like square layout.
-* Add a perforated border and classic stamp styling to each photo.
-* Embed location data (GPS coordinates and address) into the image metadata.
-* Add a personal note or caption to each stamp.
-* Save both the decorated stamp version and the original clean photo.
-* Browse saved stamps in a gallery with flip-card detail views.
-* Share or delete saved stamps from your collection.
+### Stamp Capture Experience
 
-## Key Features
+- Provides a dedicated framing interface optimized for stamp-style compositions.
+- Supports real-time adjustments including zoom and exposure to ensure high-quality captures.
+- Features intuitive shutter feedback and automated focus management for a seamless shooting process.
 
-* **Stamp Creation**: Take a photo and generate a stylized stamp automatically, complete with crisp white borders and perforated edges.
-* **Location Metadata**: Use FusedLocationProvider to capture GPS coordinates at the moment of shooting and store that information in the image Exif data.
-* **Personal Notes**: Attach custom text notes or captions to each photo stamp for memory keeping.
-* **Dual Export Options**: Choose to export the finished stamp image or the original photo without decoration.
-* **Gallery Management**: View saved stamps in a custom album, flip each stamp to reveal details, and manage your collection.
-* **Smooth UI**: Built with Jetpack Compose for fluid transitions, clean layouts, and modern Android styling.
+### Intelligent Stamp Generation
 
-## Tech Stack
+- Automatically applies classic stamp borders and perforated styles to captured images.
+- Integrates environmental and device metadata, such as date, time, and device information, directly into the stamp design.
+- Supports location tagging to record geographical coordinates for every capture.
+- Allows users to add custom remarks that are embedded within the image information.
 
-* **Kotlin**: Core application language.
-* **Jetpack Compose**: Declarative UI implementation.
-* **CameraX**: Simplified camera capture and preview.
-* **Coil**: Efficient image loading, processing, and previews.
-* **ExifInterface**: Reading and writing Exif metadata.
-* **FusedLocationProvider**: Reliable location capture for geotagging.
+### Digital Collection Management
 
-## How to Use
+- Includes a dedicated library to browse and organize your collection of digital stamps.
+- Offers visual enhancement tools, such as oil painting filters with adjustable intensity, to add artistic flair to your collection.
+- Supports flexible export options, allowing you to save either the original photo or the processed stamp version to your device.
+- Built-in sharing functionality to easily send your creations to other platforms.
 
-1. Open the app and grant camera and location permissions.
-2. Capture a new photo from the app camera screen.
-3. Let SnapStamp automatically crop the image and apply a stamp frame.
-4. Add a location note or personal caption if desired.
-5. Save the stamp to your album.
-6. Browse saved stamps in the gallery and share or delete as needed.
+### Personalization and Privacy
 
-## Project Structure
-
-* `app/src/main/java/` — Application code and Compose screens.
-* `app/src/main/res/` — Layout resources, icons, and images.
-* `app/build.gradle.kts` — App module build configuration.
-* `build.gradle.kts` — Project-level Gradle configuration.
-
-## Notes
-
-This app is intended for creative photo journaling and travel memory capture. It works best on devices with CameraX support and location services enabled.
+- Customizable capture settings including default zoom levels and framing guides.
+- Adjustable border strengths and styles to match your personal aesthetic.
+- Granular control over image quality and storage behavior.
+- Integrated privacy checks to ensure location and metadata are shared only when intended.

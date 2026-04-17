@@ -43,19 +43,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.location.LocationServices
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.valency.snapstamp.data.AppSettings
 import top.valency.snapstamp.data.SettingsStore
 import top.valency.snapstamp.R
 import top.valency.snapstamp.ui.components.StampShape
-import top.valency.snapstamp.utils.processAndSaveStamp
-import top.valency.snapstamp.utils.takePhotoWithPermission
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -67,8 +63,11 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
     val settingsStore = remember(context) { SettingsStore(context) }
     val settings by settingsStore.settingsFlow.collectAsState(initial = AppSettings())
 
+    val viewModel: CameraViewModel = viewModel()
+    val isProcessing by viewModel.isProcessing.collectAsState()
+    val processedStampBitmap by viewModel.processedStampBitmap.collectAsState()
+
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
-    var isProcessing by remember { mutableStateOf(false) }
 
     // --- 相机控制状态 (变焦和曝光) ---
     var zoomValue by remember { mutableFloatStateOf(0f) }
@@ -76,19 +75,17 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
     var exposureRange by remember { mutableStateOf(-10f..10f) }
 
     DisposableEffect(camera) {
-        // 监听 CameraX 底层的变焦变化（用于双指缩放同步 Slider）
         val zoomObserver = Observer<ZoomState> { state ->
             zoomValue = state.linearZoom
         }
         camera?.cameraInfo?.zoomState?.observeForever(zoomObserver)
 
-        // 初始化曝光状态
         camera?.cameraInfo?.exposureState?.let { expState ->
             val range = expState.exposureCompensationRange
             if (range.lower < range.upper) {
                 exposureRange = range.lower.toFloat()..range.upper.toFloat()
             } else {
-                exposureRange = 0f..0f // 设备不支持调整曝光
+                exposureRange = 0f..0f
             }
             exposureValue = expState.exposureCompensationIndex.toFloat()
         }
@@ -104,14 +101,23 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
     }
 
     // 动画状态
-    var processedStampBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val dropAnim = remember { Animatable(0f) }
     val alphaAnim = remember { Animatable(1f) }
 
-    // 清理 bitmap 资源
-    DisposableEffect(processedStampBitmap) {
-        onDispose {
-            // 动画结束后不要立即回收 bitmap，让系统自动管理
+    LaunchedEffect(processedStampBitmap) {
+        if (processedStampBitmap != null) {
+            dropAnim.snapTo(0f)
+            alphaAnim.snapTo(1f)
+            
+            launch {
+                dropAnim.animateTo(1.2f, tween(1200, easing = FastOutSlowInEasing))
+                viewModel.clearProcessedBitmap()
+            }
+            
+            launch {
+                delay(800)
+                alphaAnim.animateTo(0f, tween(400))
+            }
         }
     }
 
@@ -133,18 +139,15 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             .onGloballyPositioned { viewSize = it.size }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    // 1. 获取点击位置并触发相机对焦+曝光调节
                     val factory = SurfaceOrientedMeteringPointFactory(size.width.toFloat(), size.height.toFloat())
                     val point = factory.createPoint(offset.x, offset.y)
 
-                    // 同时启用对焦 (AF) 和 自动曝光 (AE)
                     val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
                         .setAutoCancelDuration(settings.focusAutoResetSec.toLong(), TimeUnit.SECONDS)
                         .build()
 
                     camera?.cameraControl?.startFocusAndMetering(action)
 
-                    // 2. 触发视觉反馈动画
                     tapOffset = offset
                     scope.launch {
                         focusAlpha.snapTo(1f)
@@ -158,7 +161,6 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             }
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
-                    // 双指变焦时触发 (Slider 会通过 Observer 自动更新)
                     val currentZoom = camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
                     camera?.cameraControl?.setZoomRatio(currentZoom * zoom)
                 }
@@ -167,13 +169,10 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
         // 1. 绘制预览遮罩
         ComposeCanvas(modifier = Modifier.fillMaxSize()) {
             val rect = getRect(viewSize)
-
-            // 背景遮罩改为完全不透明的纯黑色，挖空中间预览区
             clipPath(Path().apply { addRect(rect) }, clipOp = ClipOp.Difference) {
                 drawRect(Color.Black)
             }
 
-            // --- 绘制对焦框视觉反馈 ---
             tapOffset?.let { offset ->
                 val size = 70.dp.toPx() * focusScale.value
                 drawRect(
@@ -182,7 +181,6 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                     size = androidx.compose.ui.geometry.Size(size, size),
                     style = Stroke(width = 2.dp.toPx())
                 )
-                // 对焦中心点
                 drawCircle(
                     color = Color.White.copy(alpha = focusAlpha.value),
                     radius = 4.dp.toPx(),
@@ -191,12 +189,10 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             }
         }
 
-        // 2. 附加UI (指导语 及 两侧滑动条)
+        // 2. 附加UI
         if (viewSize != IntSize.Zero && camera != null) {
             val rect = getRect(viewSize)
             val density = LocalDensity.current
-
-            // 文本在 Y 轴的偏移量，让它悬浮在取景框上方
             val textOffsetY = with(density) { rect.top.toDp() - 70.dp }
 
             if (settings.framingGuide) {
@@ -222,12 +218,10 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                 }
             }
 
-            // ====== 两侧滑动条控制区 ======
             val sliderLengthDp = with(density) { rect.height.toDp() }
             val sliderWidthDp = 40.dp
             val sliderCenterY = with(density) { (rect.top + rect.height / 2).toDp() }
 
-            // 左侧：曝光调整
             if (exposureRange.start < exposureRange.endInclusive) {
                 val leftCenterX = with(density) { (rect.left / 2).toDp() }
                 Text(
@@ -252,17 +246,13 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                     ),
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .offset(
-                            x = leftCenterX - sliderLengthDp / 2, // 确保横置时中心点对齐
-                            y = sliderCenterY - sliderWidthDp / 2
-                        )
+                        .offset(x = leftCenterX - sliderLengthDp / 2, y = sliderCenterY - sliderWidthDp / 2)
                         .width(sliderLengthDp)
                         .height(sliderWidthDp)
-                        .rotate(-90f) // 旋转实现垂直滑动条
+                        .rotate(-90f)
                 )
             }
 
-            // 右侧：变焦缩放
             val rightCenterX = with(density) { (rect.right + (viewSize.width - rect.right) / 2).toDp() }
             Text(
                 text = stringResource(R.string.camerascr_zoom),
@@ -286,17 +276,14 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                 ),
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .offset(
-                        x = rightCenterX - sliderLengthDp / 2,
-                        y = sliderCenterY - sliderWidthDp / 2
-                    )
+                    .offset(x = rightCenterX - sliderLengthDp / 2, y = sliderCenterY - sliderWidthDp / 2)
                     .width(sliderLengthDp)
                     .height(sliderWidthDp)
                     .rotate(-90f)
             )
         }
 
-        // 3. 邮票掉落动画展示（现代风格）
+        // 3. 邮票掉落动画展示
         processedStampBitmap?.let { bitmap ->
             if (!bitmap.isRecycled) {
                 val rect = getRect(viewSize)
@@ -305,7 +292,6 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            // 修复：只计算从当前位置到底部的剩余距离
                             val remainingDist = size.height - rect.top
                             translationY = dropAnim.value * remainingDist
                             alpha = alphaAnim.value
@@ -321,8 +307,6 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                                 height = with(density) { (rect.width * 4f / 3f).toDp() }
                             )
                             .graphicsLayer {
-                                // 关键修复：参数从 9f, 32f 改为 0.009f, 0.032f
-                                // 因为 StampShape 接收的是比例（Ratio），原值过大会导致裁剪掉所有内容
                                 shape = StampShape(0.009f, 0.032f)
                                 clip = true
                             },
@@ -348,91 +332,26 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                 .padding(bottom = 60.dp),
             onClick = {
                 if (isProcessing) return@ModernShutterButton
-                isProcessing = true
                 if (settings.shutterFeedback) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
-                takePhotoWithPermission(context, fusedLocationClient, settings.writeLocationExif) { loc ->
-                    imageCapture.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
-                        override fun onCaptureSuccess(image: ImageProxy) {
-                            val bitmap = image.toBitmap()
-                            val rotation = image.imageInfo.rotationDegrees
-                            image.close()
-
-                            scope.launch(Dispatchers.Default) {
-                                android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE START ===")
-                                val rect = getRect(viewSize)
-                                
-                                // 尝试保存邮票，捕获所有异常
-                                val finalBitmap = try {
-                                    processAndSaveStamp(
-                                        bitmap, rotation, context,
-                                        RectF(rect.left, rect.top, rect.right, rect.bottom),
-                                        viewSize.width, viewSize.height, loc,
-                                        jpegQuality = settings.jpegQuality,
-                                        saveInternalCopy = settings.keepInternalCopy && settings.allowBackup,
-                                        autoSaveToAlbum = settings.autoSaveAfterShot && settings.saveToSystemAlbum,
-                                        borderStrength = settings.borderThickness,
-                                        borderClassicStyle = settings.borderClassicStyle,
-                                        infoVisibleOverlay = settings.infoVisibleOverlay
-                                    )
-                                } catch (e: Exception) {
-                                    android.util.Log.e("CameraScreen", "processAndSaveStamp EXCEPTION", e)
-                                    null
-                                }
-
-                                withContext(Dispatchers.Main) {
-                                    isProcessing = false
-                                    
-                                    // 容错机制：processAndSaveStamp 内部会回收原始 bitmap，
-                                    // 因此若 finalBitmap 为空，则无法显示动画，不应回退到已回收的 bitmap。
-                                    val animationBitmap = if (finalBitmap != null && !finalBitmap.isRecycled) {
-                                        Toast.makeText(context, context.getString(R.string.camerascr_stamp_success), Toast.LENGTH_SHORT).show()
-                                        finalBitmap
-                                    } else {
-                                        android.util.Log.e("CameraScreen", "Animation skipped: finalBitmap is null or recycled")
-                                        null
-                                    }
-                                    
-                                    if (settings.dropAnimation && animationBitmap != null) {
-                                        scope.launch {
-                                            // 关键修复：在设置 bitmap 之前立即重置动画状态
-                                            dropAnim.snapTo(0f)
-                                            alphaAnim.snapTo(1f)
-                                            
-                                            val currentBitmap = animationBitmap
-                                            processedStampBitmap = currentBitmap
-                                            
-                                            // 启动掉落动画
-                                            launch {
-                                                dropAnim.animateTo(1.2f, tween(1200, easing = FastOutSlowInEasing))
-                                                if (processedStampBitmap === currentBitmap) {
-                                                    processedStampBitmap = null
-                                                }
-                                            }
-                                            
-                                            // 启动淡出动画
-                                            launch {
-                                                delay(800)
-                                                alphaAnim.animateTo(0f, tween(400))
-                                            }
-                                        }
-                                    }
-                                    android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE END ===")
-                                }
-                            }
-                        }
-                        override fun onError(exc: ImageCaptureException) { isProcessing = false }
-                    })
-                }
+                val rect = getRect(viewSize)
+                viewModel.takePhoto(
+                    context = context,
+                    imageCapture = imageCapture,
+                    fusedLocationClient = fusedLocationClient,
+                    settings = settings,
+                    viewWidth = viewSize.width,
+                    viewHeight = viewSize.height,
+                    screenRect = RectF(rect.left, rect.top, rect.right, rect.bottom),
+                    onSuccess = { Toast.makeText(context, context.getString(R.string.camerascr_stamp_success), Toast.LENGTH_SHORT).show() },
+                    onError = { Toast.makeText(context, "Error: ${it.message}", Toast.LENGTH_SHORT).show() }
+                )
             }
         )
     }
 }
 
-// ==========================================
-// 现代化快门按钮组件
-// ==========================================
 @Composable
 fun ModernShutterButton(
     isProcessing: Boolean,
@@ -466,7 +385,6 @@ fun ModernShutterButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // 外层细边框白环
         ComposeCanvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
                 color = Color.White,
@@ -475,7 +393,6 @@ fun ModernShutterButton(
             )
         }
 
-        // 内层实体圆
         Box(
             modifier = Modifier
                 .size(innerCircleSize)
