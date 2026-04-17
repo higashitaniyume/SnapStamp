@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
@@ -121,11 +122,9 @@ fun LibraryScreen() {
     var isSelectionMode by remember { mutableStateOf(false) }
     val selectedItems = remember { mutableStateListOf<StampModel>() }
 
-    // 当前大图预览的文件（原图或油画图）
     var currentDisplayFile by remember { mutableStateOf<File?>(null) }
     var isOperating by remember { mutableStateOf(false) }
 
-    // 对话框状态
     var showDeleteConfirm by remember { mutableStateOf<List<StampModel>?>(null) }
     var showRemarkDialog by remember { mutableStateOf<StampModel?>(null) }
     var remarkText by remember { mutableStateOf("") }
@@ -134,9 +133,19 @@ fun LibraryScreen() {
     fun load() {
         isOperating = true
         scope.launch(Dispatchers.IO) {
-            val files = context.filesDir.listFiles { f ->
-                f.name.startsWith("STAMP_") && f.name.endsWith(".jpg") && !f.name.contains("_OIL")
-            }?.toList() ?: emptyList()
+            // 修复点：改用外部数据目录读取图片
+            val externalDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            val baseDir = File(externalDir, "SnapStamp/Raw")
+            
+            val files = if (baseDir.exists()) {
+                baseDir.walk()
+                    .filter { f -> 
+                        f.isFile && f.name.startsWith("STAMP_") && f.name.endsWith(".jpg") && !f.name.contains("_OIL") 
+                    }
+                    .toList()
+            } else {
+                emptyList()
+            }
 
             val mapped = mutableListOf<StampModel>()
             for (f in files.sortedByDescending { it.lastModified() }) {
@@ -158,8 +167,6 @@ fun LibraryScreen() {
     LaunchedEffect(Unit) { load() }
 
     // --- 核心操作逻辑 ---
-
-    // 滤镜生成逻辑
 
     fun toggleOilFilter(stamp: StampModel, enable: Boolean) {
         val oilFile = File(stamp.file.absolutePath.replace(".jpg", "_OIL.jpg"))
@@ -206,8 +213,6 @@ fun LibraryScreen() {
         }
     }
 
-    // 保存到相册
-
     fun performSave(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -223,7 +228,7 @@ fun LibraryScreen() {
                         put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
                     }
                     context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)?.let { uri ->
-                                                context.contentResolver.openOutputStream(uri)?.use { out ->
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
                             if (withBorder) {
                                 val bitmap = BitmapFactory.decodeFile(fileToProcess.absolutePath)
                                 val stamped = createStampBitmap(
@@ -250,8 +255,6 @@ fun LibraryScreen() {
         }
     }
 
-
-    // 分享
     fun performShare(stamps: List<StampModel>, withBorder: Boolean) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -307,7 +310,6 @@ fun LibraryScreen() {
         }
     }
 
-    // 删除
     fun performDelete(stamps: List<StampModel>) {
         isOperating = true
         scope.launch(Dispatchers.IO) {
@@ -330,8 +332,6 @@ fun LibraryScreen() {
         else { isSelectionMode = false; selectedItems.clear() }
     }
 
-
-    // --- UI 界面 ---
     Scaffold(
         topBar = {
             TopAppBar(
@@ -371,10 +371,9 @@ fun LibraryScreen() {
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            // --- 修复点：在这里对日期进行格式化处理 ---
             val groupedStamps = remember(stampList) {
                 stampList.groupBy { stamp ->
-                    val rawDate = stamp.date.take(10) // 原始格式 "2026:01:01"
+                    val rawDate = stamp.date.take(10)
                     try {
                         val inputFormat = SimpleDateFormat("yyyy:MM:dd", Locale.getDefault())
                         val outputFormat = SimpleDateFormat(dateDisplayPattern, Locale.getDefault())
@@ -421,7 +420,6 @@ fun LibraryScreen() {
                 }
             }
 
-            // --- 大图预览 OverLay ---
             AnimatedVisibility(selectedStampForPreview != null, enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f)).clickable { selectedStampForPreview = null }, Alignment.Center) {
                     selectedStampForPreview?.let { stamp ->

@@ -116,7 +116,7 @@ fun SettingsScreen() {
                     SwitchSetting(stringResource(R.string.settings_border_classic), settings.borderClassicStyle) { scope.launch { store.setBorderClassicStyle(it) } }
                     SwitchSetting(stringResource(R.string.settings_write_location), settings.writeLocationExif) { scope.launch { store.setWriteLocationExif(it) } }
                     SwitchSetting(stringResource(R.string.settings_write_remark), settings.writeRemarkExif) { scope.launch { store.setWriteRemarkExif(it) } }
-                    SwitchSetting(stringResource(R.string.settings_info_overlay), settings.infoVisibleOverlay) { scope.launch { store.setInfoVisibleOverlay(it) } }
+                    //SwitchSetting(stringResource(R.string.settings_info_overlay), settings.infoVisibleOverlay) { scope.launch { store.setInfoVisibleOverlay(it) } }
                 }
             }
 
