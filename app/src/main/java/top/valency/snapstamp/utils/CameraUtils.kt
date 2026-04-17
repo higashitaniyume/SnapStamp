@@ -125,13 +125,19 @@ suspend fun processAndSaveStamp(
             exif.saveAttributes()
         }
 
-        // --- 第三部分：合成带边框邮票并保存到相册 (.png) ---
+                // --- 第三部分：合成带边框邮票并保存到相册 (.png) ---
+        val dateStr = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(Date())
+        val deviceInfo = Build.MODEL
+        val locationStr = loc?.let { "${String.format("%.2f", it.latitude)}, ${String.format("%.2f", it.longitude)}" } ?: ""
+        
         val stampBitmap = createStampBitmap(
             cropped = cropped,
             borderStrength = borderStrength,
             classicStyle = borderClassicStyle,
             showInfoOverlay = infoVisibleOverlay,
-            date = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(Date())
+            date = dateStr,
+            deviceInfo = deviceInfo,
+            location = locationStr
         )
 
         if (autoSaveToAlbum) {

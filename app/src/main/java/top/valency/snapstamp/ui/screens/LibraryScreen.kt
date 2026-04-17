@@ -223,7 +223,7 @@ fun LibraryScreen() {
                         put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SnapStamp")
                     }
                     context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)?.let { uri ->
-                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                                                context.contentResolver.openOutputStream(uri)?.use { out ->
                             if (withBorder) {
                                 val bitmap = BitmapFactory.decodeFile(fileToProcess.absolutePath)
                                 val stamped = createStampBitmap(
@@ -231,7 +231,9 @@ fun LibraryScreen() {
                                     borderStrength = settings.borderThickness,
                                     classicStyle = settings.borderClassicStyle,
                                     showInfoOverlay = settings.infoVisibleOverlay,
-                                    date = stamp.date // 【修改了这里】将 TODO() 改为 stamp.date
+                                    date = stamp.date,
+                                    deviceInfo = stamp.info,
+                                    location = stamp.location
                                 )
                                 stamped.compress(Bitmap.CompressFormat.PNG, 100, out)
                             } else {
@@ -264,7 +266,9 @@ fun LibraryScreen() {
                             borderStrength = settings.borderThickness,
                             classicStyle = settings.borderClassicStyle,
                             showInfoOverlay = settings.infoVisibleOverlay,
-                            date = stamp.date // 【修改了这里】补充了缺失的 date 传参
+                            date = stamp.date,
+                            deviceInfo = stamp.info,
+                            location = stamp.location
                         )
                         val temp = File(context.cacheDir, "SHARE_${System.currentTimeMillis()}.png")
                         FileOutputStream(temp).use { stamped.compress(Bitmap.CompressFormat.PNG, 100, it) }
