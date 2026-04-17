@@ -112,4 +112,5 @@
     <string name="stamp_back_remark">备注：%1$s</string>
     <string name="stamp_back_postage">*已支付邮资*</string>
     <string name="github_url">https://github.com/higashitaniyume/SnapStamp</string>
+    <string name="camerascr_stamp_failed">拍照失败</string>
 </resources>

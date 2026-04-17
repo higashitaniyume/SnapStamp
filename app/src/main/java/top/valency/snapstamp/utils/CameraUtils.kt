@@ -109,9 +109,14 @@ suspend fun processAndSaveStamp(
     val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val baseFileName = "STAMP_$timeStr"
 
-    try {
+        try {
         // --- 第二部分：保存到 App 私有目录 (.jpg) ---
         if (saveInternalCopy) {
+            // 确保目录存在
+            if (!context.filesDir.exists()) {
+                context.filesDir.mkdirs()
+            }
+            
             val internalFile = File(context.filesDir, "$baseFileName.jpg")
             FileOutputStream(internalFile).use { out ->
                 cropped.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(70, 100), out)
