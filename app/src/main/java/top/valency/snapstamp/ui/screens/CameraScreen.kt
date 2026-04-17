@@ -222,7 +222,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                 }
             }
 
-            // ====== 新增：两侧滑动条控制区 ======
+            // ====== 两侧滑动条控制区 ======
             val sliderLengthDp = with(density) { rect.height.toDp() }
             val sliderWidthDp = 40.dp
             val sliderCenterY = with(density) { (rect.top + rect.height / 2).toDp() }
@@ -296,7 +296,7 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
             )
         }
 
-                // 3. 邮票掉落动画展示（现代风格）
+        // 3. 邮票掉落动画展示（现代风格）
         processedStampBitmap?.let { bitmap ->
             if (!bitmap.isRecycled) {
                 val rect = getRect(viewSize)
@@ -321,7 +321,9 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                                 height = with(density) { (rect.width * 4f / 3f).toDp() }
                             )
                             .graphicsLayer {
-                                shape = StampShape(9f, 32f)
+                                // 关键修复：参数从 9f, 32f 改为 0.009f, 0.032f
+                                // 因为 StampShape 接收的是比例（Ratio），原值过大会导致裁剪掉所有内容
+                                shape = StampShape(0.009f, 0.032f)
                                 clip = true
                             },
                         color = Color(0xFFFCFCFA),
@@ -357,89 +359,68 @@ fun CameraOverlay(imageCapture: ImageCapture, camera: Camera?) {
                             val rotation = image.imageInfo.rotationDegrees
                             image.close()
 
-                                                        scope.launch(Dispatchers.Default) {
-                                                            android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE START ===")
-                                                            val rect = getRect(viewSize)
-                                                            android.util.Log.d("CameraScreen", "Rect: $rect, ViewSize: $viewSize")
+                            scope.launch(Dispatchers.Default) {
+                                android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE START ===")
+                                val rect = getRect(viewSize)
                                 
-                                                            // 尝试保存邮票，捕获所有异常
-                                                            val finalBitmap = try {
-                                                                android.util.Log.d("CameraScreen", "Calling processAndSaveStamp...")
-                                                                processAndSaveStamp(
-                                                                    bitmap, rotation, context,
-                                                                    RectF(rect.left, rect.top, rect.right, rect.bottom),
-                                                                    viewSize.width, viewSize.height, loc,
-                                                                    jpegQuality = settings.jpegQuality,
-                                                                    saveInternalCopy = settings.keepInternalCopy && settings.allowBackup,
-                                                                    autoSaveToAlbum = settings.autoSaveAfterShot && settings.saveToSystemAlbum,
-                                                                    borderStrength = settings.borderThickness,
-                                                                    borderClassicStyle = settings.borderClassicStyle,
-                                                                    infoVisibleOverlay = settings.infoVisibleOverlay
-                                                                )
-                                                            } catch (e: Exception) {
-                                                                android.util.Log.e("CameraScreen", "processAndSaveStamp EXCEPTION", e)
-                                                                null
-                                                            }
-                                
-                                                            android.util.Log.d("CameraScreen", "finalBitmap result: ${if (finalBitmap != null) "NOT NULL (${finalBitmap.width}x${finalBitmap.height})" else "NULL"}")
+                                // 尝试保存邮票，捕获所有异常
+                                val finalBitmap = try {
+                                    processAndSaveStamp(
+                                        bitmap, rotation, context,
+                                        RectF(rect.left, rect.top, rect.right, rect.bottom),
+                                        viewSize.width, viewSize.height, loc,
+                                        jpegQuality = settings.jpegQuality,
+                                        saveInternalCopy = settings.keepInternalCopy && settings.allowBackup,
+                                        autoSaveToAlbum = settings.autoSaveAfterShot && settings.saveToSystemAlbum,
+                                        borderStrength = settings.borderThickness,
+                                        borderClassicStyle = settings.borderClassicStyle,
+                                        infoVisibleOverlay = settings.infoVisibleOverlay
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("CameraScreen", "processAndSaveStamp EXCEPTION", e)
+                                    null
+                                }
 
-                                                            withContext(Dispatchers.Main) {
-                                                                android.util.Log.d("CameraScreen", "Back to Main thread")
-                                                                isProcessing = false
+                                withContext(Dispatchers.Main) {
+                                    isProcessing = false
                                     
-                                                                // 容错机制：即使保存失败，也使用原始 bitmap 显示动画
-                                                                val animationBitmap = if (finalBitmap != null && !finalBitmap.isRecycled) {
-                                                                    android.util.Log.d("CameraScreen", "✓ Using finalBitmap for animation")
-                                                                    Toast.makeText(context, context.getString(R.string.camerascr_stamp_success), Toast.LENGTH_SHORT).show()
-                                                                    finalBitmap
-                                                                } else {
-                                                                    android.util.Log.w("CameraScreen", "✗ finalBitmap unavailable, using fallback bitmap")
-                                                                    Toast.makeText(context, "Stamp created (save may have failed)", Toast.LENGTH_SHORT).show()
-                                                                    bitmap
-                                                                }
+                                    // 容错机制：processAndSaveStamp 内部会回收原始 bitmap，
+                                    // 因此若 finalBitmap 为空，则无法显示动画，不应回退到已回收的 bitmap。
+                                    val animationBitmap = if (finalBitmap != null && !finalBitmap.isRecycled) {
+                                        Toast.makeText(context, context.getString(R.string.camerascr_stamp_success), Toast.LENGTH_SHORT).show()
+                                        finalBitmap
+                                    } else {
+                                        android.util.Log.e("CameraScreen", "Animation skipped: finalBitmap is null or recycled")
+                                        null
+                                    }
                                     
-                                                                android.util.Log.d("CameraScreen", "Animation bitmap: ${animationBitmap.width}x${animationBitmap.height}, isRecycled=${animationBitmap.isRecycled}")
-                                                                android.util.Log.d("CameraScreen", "settings.dropAnimation = ${settings.dropAnimation}")
-                                    
-                                                                                                                                if (settings.dropAnimation && !animationBitmap.isRecycled) {
-                                                                    android.util.Log.d("CameraScreen", ">>> ANIMATION CONDITION MET <<<")
-                                                                    
-                                                                    scope.launch {
-                                                                        // 关键修复：在设置 bitmap 之前立即重置动画状态
-                                                                        dropAnim.snapTo(0f)
-                                                                        alphaAnim.snapTo(1f)
-                                                                        android.util.Log.d("CameraScreen", "Animation state reset BEFORE setting bitmap")
-                                                                        
-                                                                        val currentBitmap = animationBitmap
-                                                                        processedStampBitmap = currentBitmap
-                                                                        android.util.Log.d("CameraScreen", "processedStampBitmap SET to currentBitmap")
-                                                                        
-                                                                        // 启动掉落动画
-                                                                        launch {
-                                                                            android.util.Log.d("CameraScreen", "Drop animation coroutine STARTED")
-                                                                            dropAnim.animateTo(1.2f, tween(1200, easing = FastOutSlowInEasing))
-                                                                            android.util.Log.d("CameraScreen", "Drop animation COMPLETED")
-                                                                            if (processedStampBitmap === currentBitmap) {
-                                                                                processedStampBitmap = null
-                                                                                android.util.Log.d("CameraScreen", "processedStampBitmap cleared")
-                                                                            }
-                                                                        }
-                                                                        
-                                                                        // 启动淡出动画
-                                                                        launch {
-                                                                            android.util.Log.d("CameraScreen", "Fade animation coroutine STARTED")
-                                                                            delay(800)
-                                                                            alphaAnim.animateTo(0f, tween(400))
-                                                                            android.util.Log.d("CameraScreen", "Fade animation COMPLETED")
-                                                                        }
-                                                                    }
-                                                                } else {
-                                                                    android.util.Log.e("CameraScreen", "!!! ANIMATION SKIPPED !!! dropAnimation=${settings.dropAnimation}, isRecycled=${animationBitmap.isRecycled}")
-                                                                }
-                                    
-                                                                android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE END ===")
-                                                            }
-                                                        }
+                                    if (settings.dropAnimation && animationBitmap != null) {
+                                        scope.launch {
+                                            // 关键修复：在设置 bitmap 之前立即重置动画状态
+                                            dropAnim.snapTo(0f)
+                                            alphaAnim.snapTo(1f)
+                                            
+                                            val currentBitmap = animationBitmap
+                                            processedStampBitmap = currentBitmap
+                                            
+                                            // 启动掉落动画
+                                            launch {
+                                                dropAnim.animateTo(1.2f, tween(1200, easing = FastOutSlowInEasing))
+                                                if (processedStampBitmap === currentBitmap) {
+                                                    processedStampBitmap = null
+                                                }
+                                            }
+                                            
+                                            // 启动淡出动画
+                                            launch {
+                                                delay(800)
+                                                alphaAnim.animateTo(0f, tween(400))
+                                            }
+                                        }
+                                    }
+                                    android.util.Log.d("CameraScreen", "=== PHOTO CAPTURE END ===")
+                                }
+                            }
                         }
                         override fun onError(exc: ImageCaptureException) { isProcessing = false }
                     })
